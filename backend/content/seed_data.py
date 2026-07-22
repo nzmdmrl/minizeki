@@ -28,8 +28,8 @@ CATEGORIES = [
     ("eksik_harf",       "Eksik Harf",         "turkce", "❓", 1, 3, True,  "eksik_harf", True,  False, 22),
     ("sesli_harf",       "Sesli Harfler",      "turkce", "🅰️", 1, 2, True,  "sesli_harf", True,  False, 23),
     ("anagram",          "Karışık Harfler",    "turkce", "🔀", 2, 4, True,  "anagram",    True,  False, 24),
-    ("es_anlamli",       "Eş Anlamlı",         "turkce", "🟰", 2, 4, False, None,         True,  True,  25),
-    ("zit_anlamli",      "Zıt Anlamlı",        "turkce", "↔️", 2, 4, False, None,         True,  True,  26),
+    ("es_anlamli",       "Eş Anlamlı",         "turkce", "🟰", 1, 4, False, None,         True,  True,  25),
+    ("zit_anlamli",      "Zıt Anlamlı",        "turkce", "↔️", 1, 4, False, None,         True,  True,  26),
     ("dogru_yazilis",    "Doğru Yazılış",      "turkce", "✍️", 1, 4, False, None,         True,  False, 27),
     ("noktalama",        "Noktalama",          "turkce", "❗", 2, 4, False, None,         True,  False, 28),
 

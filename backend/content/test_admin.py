@@ -183,9 +183,31 @@ def main():
     check("tekrar eden sik 400", r.status_code == 400)
 
     # Kategori sinif araligi disi
-    kotu = dict(yeni, text="TEST sinif disi", grade_min=1, grade_max=1)
-    r = c.post("/api/admin/questions", headers=ADM, json=kotu)
-    check("kategori sinif araligi disi 400", r.status_code == 400, r.text[:80])
+    # NOT: Sabit sinif yazmak yerine kategorinin GERCEK araligini okuyup
+    # disina cikiyoruz - kategori araligi degisirse test bozulmasin.
+    kats_all = c.get("/api/admin/categories", headers=ADM).json()["categories"]
+    hedef = next(k for k in kats_all if k["id"] == "es_anlamli")
+    if hedef["grade_min"] > 1:
+        disari = {"grade_min": 1, "grade_max": 1}          # alt sinira sarkma
+    elif hedef["grade_max"] < 4:
+        disari = {"grade_min": 4, "grade_max": 4}          # ust sinira sarkma
+    else:
+        disari = None                                       # kategori 1-4 tamamini kapsiyor
+    if disari:
+        kotu = dict(yeni, text="TEST sinif disi", **disari)
+        r = c.post("/api/admin/questions", headers=ADM, json=kotu)
+        check("kategori sinif araligi disi 400", r.status_code == 400, r.text[:80])
+    else:
+        # Kategori tum siniflari kapsiyorsa baska bir kategoriyle dene
+        dar = next((k for k in kats_all
+                    if not k["is_procedural"] and k["grade_min"] > 1), None)
+        if dar:
+            kotu = dict(yeni, category_id=dar["id"], text="TEST sinif disi",
+                        grade_min=1, grade_max=1)
+            r = c.post("/api/admin/questions", headers=ADM, json=kotu)
+            check("kategori sinif araligi disi 400", r.status_code == 400, r.text[:80])
+        else:
+            check("kategori sinif araligi kontrolu (atlandi)", True)
 
     # Durum degistir
     r = c.put(f"/api/admin/questions/{qid}/status", headers=ADM,

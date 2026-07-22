@@ -24,26 +24,28 @@ from content import sorular_diger_ek as sde  # noqa: E402
 from content import sorular_fen as sf  # noqa: E402
 from content import sorular_fen4 as sf4  # noqa: E402
 from content import sorular_sosyal as ss  # noqa: E402
+from content import sorular_hayat_ek2 as she2  # noqa: E402
+from content import sorular_turkce_ek2 as ste2  # noqa: E402
 
 
 # kategori_id -> soru listesi
 SORU_BANKASI = {
     # Turkce
-    "es_anlamli":    st.ES_ANLAMLI + ste.ES_ANLAMLI_EK,
-    "zit_anlamli":   st.ZIT_ANLAMLI + ste.ZIT_ANLAMLI_EK,
-    "dogru_yazilis": st.DOGRU_YAZILIS + ste.DOGRU_YAZILIS_EK,
-    "noktalama":     st.NOKTALAMA + ste.NOKTALAMA_EK,
+    "es_anlamli":    st.ES_ANLAMLI + ste.ES_ANLAMLI_EK + ste2.ES_ANLAMLI_EK2,
+    "zit_anlamli":   st.ZIT_ANLAMLI + ste.ZIT_ANLAMLI_EK + ste2.ZIT_ANLAMLI_EK2,
+    "dogru_yazilis": st.DOGRU_YAZILIS + ste.DOGRU_YAZILIS_EK + ste2.DOGRU_YAZILIS_EK2,
+    "noktalama":     st.NOKTALAMA + ste.NOKTALAMA_EK + ste2.NOKTALAMA_EK2,
     # Hayat Bilgisi
-    "okulumuz":      sh.OKULUMUZ + she.OKULUMUZ_EK,
-    "ailemiz":       sh.AILEMIZ + she.AILEMIZ_EK,
-    "sagligimiz":    sh.SAGLIGIMIZ + she.SAGLIGIMIZ_EK,
-    "guvenligimiz":  sh.GUVENLIGIMIZ + she.GUVENLIGIMIZ_EK,
-    "ulkemiz":       sh.ULKEMIZ + she.ULKEMIZ_EK,
-    "doga_cevre":    sh.DOGA_CEVRE + she.DOGA_CEVRE_EK,
+    "okulumuz":      sh.OKULUMUZ + she.OKULUMUZ_EK + she2.OKULUMUZ_EK2,
+    "ailemiz":       sh.AILEMIZ + she.AILEMIZ_EK + she2.AILEMIZ_EK2,
+    "sagligimiz":    sh.SAGLIGIMIZ + she.SAGLIGIMIZ_EK + she2.SAGLIGIMIZ_EK2,
+    "guvenligimiz":  sh.GUVENLIGIMIZ + she.GUVENLIGIMIZ_EK + she2.GUVENLIGIMIZ_EK2,
+    "ulkemiz":       sh.ULKEMIZ + she.ULKEMIZ_EK + she2.ULKEMIZ_EK2,
+    "doga_cevre":    sh.DOGA_CEVRE + she.DOGA_CEVRE_EK + she2.DOGA_CEVRE_EK2,
     # Diger
-    "geometri":      sd.GEOMETRI + sde.GEOMETRI_EK,
-    "ing_kelime":    sd.ING_KELIME + sde.ING_KELIME_EK,
-    "ing_ifade":     sd.ING_IFADE + sde.ING_IFADE_EK,
+    "geometri":      sd.GEOMETRI + sde.GEOMETRI_EK + ste2.GEOMETRI_EK2,
+    "ing_kelime":    sd.ING_KELIME + sde.ING_KELIME_EK + ste2.ING_KELIME_EK2,
+    "ing_ifade":     sd.ING_IFADE + sde.ING_IFADE_EK + ste2.ING_IFADE_EK2,
     # --- 3-4. sinif: Fen Bilimleri ---
     "dunya_gokyuzu":  sf.DUNYA_GOKYUZU,
     "duyu_organlari": sf.DUYU_ORGANLARI,
