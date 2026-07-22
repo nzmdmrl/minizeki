@@ -44,6 +44,57 @@ def startup():
     if cfg.SECRET_KEY.startswith("minizeki-dev-secret"):
         log.warning("SECRET_KEY varsayilan! Uretimde MUTLAKA degistirin.")
 
+    _otomatik_seed()
+
+
+def _otomatik_seed():
+    """
+    Baslangicta kategori/rozet/esya/soru bankasini senkronize eder.
+
+    NEDEN: Docker/Coolify gibi ortamlarda deploy sonrasi SSH ile
+    'python content/seed.py' calistirmak zorunda kalmamak icin.
+
+    GUVENLI MI: Evet, seed idempotenttir —
+      - Mevcut sorulari SILMEZ, sadece eksikleri ekler
+      - Cocuk verisine (hesap, profil, cevap gecmisi) DOKUNMAZ
+      - Ayni soru iki kez eklenmez (metin + dogru cevap kontrolu)
+
+    AUTO_SEED=0 ile kapatilabilir.
+    """
+    import os
+    if os.getenv("AUTO_SEED", "1") not in ("1", "true", "True"):
+        log.info("AUTO_SEED kapali - soru bankasi senkronu atlandi")
+        return
+
+    try:
+        from models import SessionLocal, Question
+        from content.seed import (
+            seed_categories, seed_badges, seed_house, seed_questions, dogrula,
+        )
+        db = SessionLocal()
+        try:
+            once = db.query(Question).count()
+            k = seed_categories(db)
+            b = seed_badges(db)
+            h = seed_house(db)
+            eklenen, _ = seed_questions(db)
+            sonra = db.query(Question).count()
+
+            if k or b or h or eklenen:
+                log.info("Seed: +%d kategori, +%d rozet, +%d esya, +%d soru "
+                         "(toplam %d -> %d)", k, b, h, eklenen, once, sonra)
+            else:
+                log.info("Seed: degisiklik yok (%d soru)", sonra)
+
+            for uyari in dogrula(db):
+                log.warning("Seed uyarisi: %s", uyari)
+        finally:
+            db.close()
+    except Exception as e:
+        # Seed hatasi uygulamayi DUSURMEMELI - mevcut sorularla calismaya devam et
+        log.error("Otomatik seed basarisiz (%s: %s) - uygulama devam ediyor",
+                  type(e).__name__, e)
+
 
 @app.get("/api/health")
 def health():
