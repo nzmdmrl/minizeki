@@ -1,0 +1,26 @@
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Veritabani ve yedekler (SUNUCUDA volume'da durur)
+*.db
+*.db-journal
+*.sql
+*.sql.gz
+
+# Node / Next
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# Ortam degiskenleri (SIRLAR - asla repoya gitmemeli)
+.env
+.env.local
+.env.production
+
+# Sistem
+.DS_Store
+*.log

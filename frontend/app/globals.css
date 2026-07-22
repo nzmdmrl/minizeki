@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f6f9ff;
+}
+
+html, body {
+  font-family: 'Nunito', system-ui, sans-serif;
+  background: var(--bg);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Cocuk arayuzunde metin secimi kazara olmasin */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@layer components {
+  /* Buyuk dokunma alani: 7-10 yas icin min 56px */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl
+           font-extrabold transition-all active:scale-95
+           disabled:opacity-50 disabled:cursor-not-allowed
+           focus-visible:outline focus-visible:outline-2
+           focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+    min-height: 56px;
+  }
+  .btn-primary {
+    @apply btn bg-brand-500 text-white px-6 shadow-lg shadow-brand-500/25
+           hover:bg-brand-600;
+  }
+  .btn-mint {
+    @apply btn bg-mint-500 text-white px-6 shadow-lg shadow-mint-500/25
+           hover:bg-mint-600;
+  }
+  .btn-ghost {
+    @apply btn bg-white text-slate-700 px-6 border-2 border-slate-200
+           hover:border-slate-300;
+  }
+
+  .card {
+    @apply bg-white rounded-3xl shadow-sm border border-slate-100;
+  }
+
+  .input {
+    @apply w-full rounded-2xl border-2 border-slate-200 px-4 py-3
+           text-lg font-semibold outline-none transition
+           focus:border-brand-400 focus:ring-4 focus:ring-brand-100;
+  }
+}
+
+/* Sik butonu */
+.opt {
+  @apply w-full rounded-2xl border-4 bg-white px-5 py-5 text-left
+         text-xl font-extrabold text-slate-800 transition-all
+         border-slate-200 active:scale-[0.98];
+  min-height: 72px;
+}
+.opt:not(:disabled):hover {
+  @apply border-brand-300 bg-brand-50;
+}
+.opt-correct {
+  @apply border-mint-500 bg-mint-400/15 text-mint-600;
+}
+.opt-wrong {
+  @apply border-coral-500 bg-coral-400/15 text-coral-500;
+}
+.opt-muted {
+  @apply opacity-40;
+}
+
+/* Saat SVG'si beyaz kart uzerinde ortalanir */
+.clock-wrap svg {
+  @apply mx-auto;
+  width: 180px;
+  height: 180px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
