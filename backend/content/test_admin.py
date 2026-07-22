@@ -103,9 +103,20 @@ def main():
     r = c.get("/api/admin/categories", headers=ADM)
     check("kategoriler 200", r.status_code == 200)
     kats = r.json()["categories"]
-    check(f"27 kategori ({len(kats)})", len(kats) == 27)
+    # Kategori sayisi icerik eklendikce artar - sabit sayi beklemek yerine
+    # DB ile seed_data tutarliligini kontrol et
+    from content.seed_data import CATEGORIES
+    check(f"kategori sayisi seed ile ayni ({len(kats)}/{len(CATEGORIES)})",
+          len(kats) == len(CATEGORIES))
     proc = [k for k in kats if k["is_procedural"]]
-    check(f"14 prosedurel ({len(proc)})", len(proc) == 14)
+    beklenen_proc = len([c for c in CATEGORIES if c[6]])
+    check(f"prosedurel sayisi ({len(proc)}/{beklenen_proc})",
+          len(proc) == beklenen_proc)
+    # Mufredat: 1-2. sinifta Fen olmamali
+    fen_alt = [k for k in kats if k["subject"] == "fen" and k["grade_min"] <= 2]
+    check("1-2. sinifta Fen kategorisi YOK", len(fen_alt) == 0)
+    sos_alt = [k for k in kats if k["subject"] == "sosyal" and k["grade_min"] <= 3]
+    check("1-3. sinifta Sosyal kategorisi YOK", len(sos_alt) == 0)
 
     # --- Uretecler ---
     print("\n[Uretecler]")

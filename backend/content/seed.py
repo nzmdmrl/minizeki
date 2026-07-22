@@ -21,6 +21,9 @@ from content import sorular_hayat as sh  # noqa: E402
 from content import sorular_hayat_ek as she  # noqa: E402
 from content import sorular_diger as sd  # noqa: E402
 from content import sorular_diger_ek as sde  # noqa: E402
+from content import sorular_fen as sf  # noqa: E402
+from content import sorular_fen4 as sf4  # noqa: E402
+from content import sorular_sosyal as ss  # noqa: E402
 
 
 # kategori_id -> soru listesi
@@ -41,6 +44,24 @@ SORU_BANKASI = {
     "geometri":      sd.GEOMETRI + sde.GEOMETRI_EK,
     "ing_kelime":    sd.ING_KELIME + sde.ING_KELIME_EK,
     "ing_ifade":     sd.ING_IFADE + sde.ING_IFADE_EK,
+    # --- 3-4. sinif: Fen Bilimleri ---
+    "dunya_gokyuzu":  sf.DUNYA_GOKYUZU,
+    "duyu_organlari": sf.DUYU_ORGANLARI,
+    "kuvvet_hareket": sf.KUVVET_HAREKET,
+    "madde":          sf.MADDE,
+    "canlilar":       sf.CANLILAR,
+    # --- 4. sinif: Fen ek uniteleri ---
+    "isik_ses":       sf4.ISIK_SES,
+    "elektrik":       sf4.ELEKTRIK,
+    "beslenme":       sf4.BESLENME,
+    # --- 4. sinif: Sosyal Bilgiler ---
+    "kimlik_haklar":  ss.KIMLIK_HAKLAR,
+    "tarihimiz":      ss.TARIHIMIZ,
+    "cografya":       ss.COGRAFYA,
+    "buluslar":       ss.BULUSLAR,
+    "ekonomi":        ss.EKONOMI,
+    "vatandaslik":    ss.VATANDASLIK,
+    "dunya_ulkeleri": ss.DUNYA_ULKELERI,
 }
 
 

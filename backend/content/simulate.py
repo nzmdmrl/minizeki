@@ -33,7 +33,12 @@ YETENEK = {
     "turkce":        {1: 0.92, 2: 0.80, 3: 0.62, 4: 0.40, 5: 0.22},
     "hayat_bilgisi": {1: 0.95, 2: 0.88, 3: 0.76, 4: 0.55, 5: 0.35},
     "ingilizce":     {1: 0.90, 2: 0.78, 3: 0.58, 4: 0.38, 5: 0.20},
+    "fen":           {1: 0.94, 2: 0.85, 3: 0.70, 4: 0.48, 5: 0.30},
+    "sosyal":        {1: 0.93, 2: 0.83, 3: 0.68, 4: 0.45, 5: 0.28},
 }
+
+# Sinif komut satirindan: python content/simulate.py 4
+SINIF = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 2
 
 
 def cevapla(subject: str, band: int, grade: int, profile_grade: int) -> bool:
@@ -61,20 +66,20 @@ def main():
         db.add(acc)
         db.flush()
 
-        p = Profile(account_id=acc.id, name="Ali", avatar_id="fox", grade=2,
+        p = Profile(account_id=acc.id, name="Ali", avatar_id="fox", grade=SINIF,
                     calibrated=True, shield_count=2,
                     shield_month=f"{date.today().year}-{date.today().month:02d}")
         db.add(p)
         db.flush()
 
         # Kalibrasyon sonucu: level 3
-        for c in kategoriler_for_grade(db, 2, "family"):
+        for c in kategoriler_for_grade(db, SINIF, "family"):
             s = ProfileSkill(profile_id=p.id, category_id=c.id, level=3)
             db.add(s)
         db.commit()
 
         print("=" * 68)
-        print("8 HAFTALIK SIMULASYON — Ali, 2. sinif")
+        print(f"8 HAFTALIK SIMULASYON — Ali, {SINIF}. sinif")
         print("  Matematik: iyi | Turkce: ortalama | Hayat Bilgisi: orta")
         print("=" * 68)
         print(f"\n{'Hafta':<7}{'Gun':<6}{'Soru':<7}{'Dogru':<8}{'Terfi':<8}{'Durum'}")
@@ -161,7 +166,7 @@ def main():
         print(f"{'Kategori':<24}{'Ders':<16}{'Dogruluk':<11}{'Lv':<5}{'Terfi'}")
         print("-" * 68)
 
-        for c in kategoriler_for_grade(db, 2, "family"):
+        for c in kategoriler_for_grade(db, SINIF, "family"):
             s = db.get(ProfileSkill, (p.id, c.id))
             if not s:
                 continue
@@ -200,7 +205,7 @@ def main():
 
         # Matematik Turkce'den iyi olmali (cocugun profili boyle)
         def ders_orani(ders):
-            kats = [c.id for c in kategoriler_for_grade(db, 2, "family")
+            kats = [c.id for c in kategoriler_for_grade(db, SINIF, "family")
                     if c.subject == ders]
             ss = [db.get(ProfileSkill, (p.id, k)) for k in kats]
             ss = [s for s in ss if s and (s.total_correct + s.total_wrong) > 0]

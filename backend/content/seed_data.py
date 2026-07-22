@@ -44,6 +44,37 @@ CATEGORIES = [
     # ---------------- INGILIZCE (2. siniftan) ----------------
     ("ing_kelime",       "İngilizce Kelimeler", "ingilizce", "🔠", 2, 4, False, None, True, False, 40),
     ("ing_ifade",        "İngilizce İfadeler",  "ingilizce", "💬", 2, 4, False, None, True, False, 41),
+
+    # ================ 3. SINIFTAN ITIBAREN ================
+    # MUFREDAT NOTU: Bolme ve kesirler 3. sinifta baslar (2. sinifta YOKTUR).
+
+    ("bolme",            "Bölme",              "matematik", "➗", 3, 4, True,  "bolme", True, False, 13.5),
+    ("kesir",            "Kesirler",           "matematik", "🍕", 3, 4, True,  "kesir", True, False, 17.5),
+
+    # ---------------- FEN BILIMLERI (3. siniftan) ----------------
+    # MUFREDAT NOTU: 1-2. sinifta Fen YOKTUR, Hayat Bilgisi vardir.
+    # Fen 3. sinifta baslar. Asagidaki 5 unite MEB 3. sinif mufredatidir.
+    ("dunya_gokyuzu",    "Dünya ve Gökyüzü",   "fen", "🌍", 3, 4, False, None, True,  False, 50),
+    ("duyu_organlari",   "Duyu Organları",     "fen", "👂", 3, 4, False, None, True,  False, 51),
+    ("kuvvet_hareket",   "Hareket ve Kuvvet",  "fen", "🏃", 3, 4, False, None, True,  False, 52),
+    ("madde",            "Madde ve Özellikleri", "fen", "🧊", 3, 4, False, None, True, False, 53),
+    ("canlilar",         "Canlılar ve Yaşam",  "fen", "🐛", 3, 4, False, None, True,  False, 54),
+
+    # ---------------- 4. SINIF FEN EK UNITELERI ----------------
+    ("isik_ses",         "Işık ve Ses",        "fen", "💡", 4, 4, False, None, False, False, 55),
+    ("elektrik",         "Elektrik",           "fen", "🔌", 4, 4, False, None, False, False, 56),
+    ("beslenme",         "Beslenme ve Sindirim", "fen", "🍎", 4, 4, False, None, False, False, 57),
+
+    # ---------------- SOSYAL BILGILER (yalniz 4. sinif) ----------------
+    # MUFREDAT NOTU: Sosyal Bilgiler 4. sinifta baslar.
+    # Hayat Bilgisi 4. sinifta biter, yerini Fen + Sosyal alir.
+    ("kimlik_haklar",    "Kimlik ve Haklarımız", "sosyal", "🪪", 4, 4, False, None, False, False, 60),
+    ("tarihimiz",        "Atatürk ve Tarihimiz", "sosyal", "🏛️", 4, 4, False, None, False, False, 61),
+    ("cografya",         "Türkiye Coğrafyası",   "sosyal", "🗺️", 4, 4, False, None, False, False, 62),
+    ("buluslar",         "Buluşlar ve Teknoloji", "sosyal", "💡", 4, 4, False, None, False, False, 63),
+    ("ekonomi",          "Ekonomi ve Meslekler",  "sosyal", "🏭", 4, 4, False, None, False, False, 64),
+    ("vatandaslik",      "Vatandaşlık",           "sosyal", "🤝", 4, 4, False, None, False, False, 65),
+    ("dunya_ulkeleri",   "Dünya Ülkeleri",        "sosyal", "🏳️", 4, 4, False, None, False, False, 66),
 ]
 
 
