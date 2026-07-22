@@ -1,405 +1,935 @@
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 
-const ALANLAR = [
+/**
+ * /tanitim — Giris yapmamis ziyaretcinin gordugu sayfa.
+ *
+ * app/page.tsx buraya yonlendirir:
+ *     if (!token.get()) router.replace('/tanitim')
+ * Giris yapmis kullanici buraya dusmez, dogrudan cocuk ekranina gider.
+ *
+ * ANA TEZ: "Cocugunuz nerede zorlaniyorsa, sorular oraya kayar."
+ * Rakiplerden ayrisan ozellik kategori bazli otomatik seviye uyarlamasidir;
+ * sayfanin merkezinde bu vardir. "Baski yok" mesaji ikincildir.
+ *
+ * TASARIM: Cizgili okul defteri. Kursun kalem grisi, defter mavisi,
+ * ogretmen kirmizisi. Hero arka planinda gercek defter cizgileri.
+ *
+ * IMZA OGE: SeviyeHaritasi — cocugun matematikte ust sinif sorusu cozerken
+ * imlada alt sinif tekrari yaptigini gosterir. Sistemin en degerli ozelligi.
+ *
+ * RAKAMLAR (koda karsi dogrulandi): 44 konu / 1.422 soru / 16 prosedurel.
+ * Icerik eklendiginde DERSLER dizisi ve Mufredat bolumu guncellenmelidir.
+ */
+
+const GIRIS = '/giris';
+
+// ---------------------------------------------------------------- Veri
+
+const DERSLER = [
   {
-    baslik: 'Matematik',
-    renk: 'brand',
-    konular: ['Sayılar', 'Toplama–Çıkarma', 'Çarpım Tablosu', 'Basamak Değeri', 'Ritmik Sayma', 'Saat Okuma', 'Para Hesabı', 'Örüntü', 'Geometrik Şekiller'],
+    ad: 'Matematik', renk: '#2563eb', sinif: '1–4',
+    konular: ['Sayılar', 'Sayalım', 'Toplama–Çıkarma', 'Çarpım Tablosu', 'Bölme',
+              'Basamak Değeri', 'Ritmik Sayma', 'Saat Okuma', 'Para Hesabı',
+              'Kesirler', 'Örüntü', 'Geometrik Şekiller'],
   },
   {
-    baslik: 'Türkçe',
-    renk: 'mint',
-    konular: ['Hece Sayısı', 'Alfabetik Sıralama', 'Eksik Harf', 'Sesli Harfler', 'Eş Anlamlı', 'Zıt Anlamlı', 'Doğru Yazılış', 'Noktalama'],
+    ad: 'Türkçe', renk: '#059669', sinif: '1–4',
+    konular: ['Hece Sayısı', 'Alfabetik Sıralama', 'Eksik Harf', 'Sesli Harfler',
+              'Karışık Harfler', 'Eş Anlamlı', 'Zıt Anlamlı', 'Doğru Yazılış',
+              'Noktalama'],
   },
   {
-    baslik: 'Hayat Bilgisi',
-    renk: 'sun',
-    konular: ['Okulumuz', 'Ailemiz ve Evimiz', 'Sağlığımız', 'Güvenliğimiz', 'Ülkemiz ve Atatürk', 'Doğa ve Çevre'],
+    ad: 'Hayat Bilgisi', renk: '#d97706', sinif: '1–3',
+    konular: ['Okulumuz', 'Ailemiz ve Evimiz', 'Sağlığımız', 'Güvenliğimiz',
+              'Ülkemiz ve Atatürk', 'Doğa ve Çevre'],
   },
   {
-    baslik: 'İngilizce',
-    renk: 'coral',
+    ad: 'Fen Bilimleri', renk: '#7c3aed', sinif: '3–4',
+    konular: ['Dünya ve Gökyüzü', 'Duyu Organları', 'Hareket ve Kuvvet',
+              'Madde ve Özellikleri', 'Canlılar ve Yaşam', 'Işık ve Ses',
+              'Elektrik', 'Beslenme ve Sindirim'],
+  },
+  {
+    ad: 'Sosyal Bilgiler', renk: '#dc2626', sinif: '4',
+    konular: ['Kimlik ve Haklarımız', 'Atatürk ve Tarihimiz', 'Türkiye Coğrafyası',
+              'Buluşlar ve Teknoloji', 'Ekonomi ve Meslekler', 'Vatandaşlık',
+              'Dünya Ülkeleri'],
+  },
+  {
+    ad: 'İngilizce', renk: '#0891b2', sinif: '2–4',
     konular: ['İngilizce Kelimeler', 'İngilizce İfadeler'],
   },
 ];
 
-const RENK_SINIF: Record<string, { bg: string; text: string; ring: string }> = {
-  brand: { bg: 'bg-brand-50', text: 'text-brand-700', ring: 'ring-brand-200' },
-  mint: { bg: 'bg-mint-400/10', text: 'text-mint-600', ring: 'ring-mint-400/30' },
-  sun: { bg: 'bg-sun-400/10', text: 'text-sun-500', ring: 'ring-sun-400/30' },
-  coral: { bg: 'bg-coral-400/10', text: 'text-coral-500', ring: 'ring-coral-400/30' },
-};
-
-const ADIMLAR = [
-  {
-    no: '1',
-    baslik: 'Çocuğun seviyesini tanıyoruz',
-    metin: 'Kısa bir tanışma turuyla hangi konularda rahat, hangilerinde desteğe ihtiyacı olduğunu belirliyoruz. Not verilmiyor, sıralama yapılmıyor.',
-  },
-  {
-    no: '2',
-    baslik: 'Her gün kısa bir görev',
-    metin: 'Oturup saatlerce çalışmak yok. Günlük görev birkaç dakikada biter; düzenli tekrar, uzun seanslardan daha çok işe yarar.',
-  },
-  {
-    no: '3',
-    baslik: 'Zorlandığı konu daha sık gelir',
-    metin: 'Sistem yanlışları takip eder ve o konuyu araya tekrar serpiştirir. Bildiği yerde oyalanmaz, takıldığı yerde pratik yapar.',
-  },
+// Imza ogenin verisi: 2. sinif bir cocugun gercekci seviye dagilimi
+const HARITA = [
+  { ad: 'Çarpım Tablosu', ders: 'Matematik', seviye: 3, oran: 88 },
+  { ad: 'Toplama–Çıkarma', ders: 'Matematik', seviye: 3, oran: 93 },
+  { ad: 'Saat Okuma', ders: 'Matematik', seviye: 2, oran: 79 },
+  { ad: 'Eş Anlamlı', ders: 'Türkçe', seviye: 2, oran: 71 },
+  { ad: 'Doğru Yazılış', ders: 'Türkçe', seviye: 1, oran: 58 },
+  { ad: 'Sağlığımız', ders: 'Hayat Bilgisi', seviye: 2, oran: 85 },
 ];
 
 const SSS = [
   {
-    s: 'Süre sınırı gerçekten yok mu?',
-    c: 'Yok. Soruların üzerinde geri sayan bir sayaç, "hızlı ol" uyarısı ya da süreye bağlı puan yok. Çocuk soruyu düşünmek için istediği kadar bekleyebilir.',
+    s: 'Çocuğumun seviyesini ben mi ayarlayacağım?',
+    c: 'Hayır. Kayıtta yalnızca sınıfını seçersiniz. Gerisini sistem kendi ' +
+       'ayarlar: bir konuda zorlanırsa oradaki soruları kolaylaştırır ve alt ' +
+       'sınıf tekrarını artırır, ustalaşırsa üst sınıf sorularını açar. ' +
+       'Bu ayar her konu için ayrı yapılır.',
   },
   {
-    s: 'Başka çocuklarla yarışıyor mu?',
-    c: 'Hayır. Sıralama tablosu, rakip, canlı düello gibi bölümler yok. İlerleme yalnızca çocuğun kendi geçmişine göre gösterilir.',
+    s: 'Süre sınırı var mı?',
+    c: 'Yok. Soruda geri sayan sayaç çalışmıyor. Çocuk istediği kadar ' +
+       'düşünebilir. Doğru cevaptan sonra otomatik olarak sonraki soruya geçer; ' +
+       'yanlış cevapta doğrusunu okuması için bekler.',
   },
   {
-    s: 'Hangi sınıflara uygun?',
-    c: '1, 2, 3 ve 4. sınıf konularını kapsıyor. İçerik çocuğun seviyesine göre açılıyor, sınıf atladıkça aynı hesap devam ediyor.',
+    s: 'Başka çocuklarla eşleşiyor mu?',
+    c: 'Hayır. Sıralama tablosu, rakip eşleştirme, sohbet ve arkadaş ekleme ' +
+       'yok. Çocuk uygulamada hiçbir yabancıyla karşılaşmaz.',
   },
   {
-    s: 'Çocuğumun ne yaptığını görebilir miyim?',
-    c: 'Evet. Ebeveyn paneli hangi konularda ilerlediğini, nerede zorlandığını ve günlük çalışma geçmişini gösterir. Panel dört haneli PIN ile korunur, çocuk kendi başına giremez.',
+    s: 'Bir gün atlarsa ne olur?',
+    c: 'Yıldızları, rozetleri ve ilerlemesi durur. Seri sayacı için ayda iki ' +
+       'kez otomatik kullanılan bir hak var; o da biterse sayaç sıfırlanır ama ' +
+       'başka hiçbir şey kaybolmaz.',
   },
   {
-    s: 'Reklam var mı?',
-    c: 'Yok. Çocuk ekranında reklam, dış bağlantı veya satın alma yönlendirmesi bulunmuyor.',
+    s: 'Günde ne kadar sürüyor?',
+    c: 'Günlük görev 16–20 soru, yaklaşık dört dakika. Çocuk isterse serbest ' +
+       'oyunla devam edebilir. Panelden günlük süre limiti koyabilirsiniz.',
+  },
+  {
+    s: 'Reklam veya uygulama içi satın alma var mı?',
+    c: 'Yok. Çocuk ekranında hiçbir yerde fiyat, ödeme ekranı veya reklam ' +
+       'görünmez. Ödeme yalnızca PIN korumalı ebeveyn panelinden yapılır.',
+  },
+  {
+    s: 'Kaç çocuk için kullanabilirim?',
+    c: 'Aile planında dört çocuğa kadar ayrı profil açabilirsiniz. Her profilin ' +
+       'kendi seviyesi, ilerlemesi ve raporu olur.',
   },
 ];
 
-export default function TanitimPage() {
+// ---------------------------------------------------------------- Sayfa
+
+export default function Tanitim() {
   return (
-    <main className="min-h-screen bg-[var(--bg)]">
-      {/* ---------------- Üst bar ---------------- */}
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
-        <div className="flex items-center gap-2">
-          <div className="grid h-10 w-10 place-items-center rounded-2xl bg-brand-500 text-xl font-black text-white shadow-lg shadow-brand-500/25">
-            M
-          </div>
-          <span className="text-xl font-black tracking-tight text-slate-800">Minizeki</span>
-        </div>
-        <Link href="/giris" className="btn-ghost !min-h-[44px] !px-5 text-base">
-          Giriş yap
+    <div className="tanitim">
+      <Nav />
+      <Hero />
+      <Fark />
+      <SeviyeHaritasi />
+      <Akis />
+      <Mufredat />
+      <Panel />
+      <Odul />
+      <Sorular />
+      <Kapanis />
+      <Footer />
+      <Stiller />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function Nav() {
+  return (
+    <header className="nav">
+      <div className="wrap nav-in">
+        <Link href="/" className="logo">
+          <span className="logo-m">M</span>
+          <span>Minizeki</span>
         </Link>
-      </header>
+        <nav className="nav-links">
+          <a href="#nasil">Nasıl çalışır</a>
+          <a href="#konular">Konular</a>
+          <a href="#sorular">Sorular</a>
+        </nav>
+        <Link href={GIRIS} className="btn btn-sm">Giriş yap</Link>
+      </div>
+    </header>
+  );
+}
 
-      {/* ---------------- Hero ---------------- */}
-      <section className="mx-auto max-w-6xl px-5 pb-16 pt-10 sm:pt-16">
-        <div className="grid items-center gap-12 lg:grid-cols-2">
+function Hero() {
+  return (
+    <section className="hero">
+      <div className="wrap hero-grid">
+        <div>
+          <p className="eyebrow">1–4. sınıf · MEB müfredatına göre</p>
+          <h1>
+            Çocuğunuz nerede zorlanıyorsa,
+            <span className="vurgu"> sorular oraya kayar.</span>
+          </h1>
+          <p className="lead">
+            Minizeki her gün dört dakikalık kısa bir görev verir. Hangi konuda
+            takıldığını fark eder ve o konunun sorularını sessizce kolaylaştırır;
+            ustalaştığı konuda ise bir üst sınıfın sorularını açar.
+            Bu ayarı <strong>her konu için ayrı</strong> yapar — siz hiçbir şey
+            değiştirmezsiniz.
+          </p>
+          <div className="cta-row">
+            <Link href={GIRIS} className="btn">Ücretsiz başla</Link>
+            <a href="#nasil" className="btn btn-ghost">Nasıl çalışır?</a>
+          </div>
+          <p className="mini">
+            Kayıt için e-posta yeterli · Çocuk ekranında reklam ve ödeme yok
+          </p>
+        </div>
+
+        <SoruKarti />
+      </div>
+    </section>
+  );
+}
+
+function SoruKarti() {
+  const [secili, setSecili] = useState<number | null>(null);
+  const dogru = 1;
+
+  return (
+    <div className="demo">
+      <div className="demo-ust">
+        <span className="demo-kat">✖️ Çarpım Tablosu</span>
+        <span className="demo-say">3 / 16</span>
+      </div>
+      <div className="demo-bar"><i style={{ width: '19%' }} /></div>
+
+      <p className="demo-soru">6 × 7 = ?</p>
+
+      <div className="demo-siklar">
+        {['36', '42', '48', '54'].map((o, i) => {
+          let k = 'demo-sik';
+          if (secili !== null) {
+            if (i === dogru) k += ' dogru';
+            else if (i === secili) k += ' yanlis';
+            else k += ' sonuk';
+          }
+          return (
+            <button key={o} className={k} onClick={() => setSecili(i)}
+                    disabled={secili !== null}>
+              {o}
+            </button>
+          );
+        })}
+      </div>
+
+      {secili === null ? (
+        <p className="demo-not">Deneyin — sayaç çalışmıyor.</p>
+      ) : secili === dogru ? (
+        <p className="demo-not demo-iyi">Doğru. Bu konuda sorular biraz zorlaşacak.</p>
+      ) : (
+        <p className="demo-not">
+          Doğrusu <strong>42</strong> — çocuğa da böyle gösterilir, ceza yok.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Fark() {
+  const maddeler = [
+    ['Sayaç yok', 'Soruda geri sayım çalışmaz. Düşünmek için süre sınırı yok.'],
+    ['Sıralama yok', 'Başka çocuklarla karşılaştırma yapılmaz.'],
+    ['Ceza yok', 'Yanlış cevapta puan gitmez, seri kırılınca kazandıkları durur.'],
+    ['Etiket yok', 'Çocuk “3. sınıf sorusu” veya “seviye 4” yazısı görmez.'],
+    ['Reklam yok', 'Çocuk ekranında fiyat, ödeme ve reklam bulunmaz.'],
+    ['Ses yok', 'Sessiz çalışır. Sınıfta, otobüste, kütüphanede kullanılabilir.'],
+  ];
+  return (
+    <section className="fark">
+      <div className="wrap">
+        <h2 className="h2">Küçük yaşta baskı, öğrenmeyi değil kaygıyı büyütür</h2>
+        <p className="alt">
+          Çoğu uygulama ilgiyi ayakta tutmak için sayaç, seri ve sıralama kullanır.
+          Bunlar kısa vadede işe yarar, uzun vadede çocuğu kaçırır. Minizeki
+          hiçbirini kullanmıyor.
+        </p>
+        <ul className="fark-liste">
+          {maddeler.map(([b, a]) => (
+            <li key={b}>
+              <span className="fark-b">{b}</span>
+              <span className="fark-a">{a}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- IMZA OGE: canli seviye haritasi ---------------- */
+
+function SeviyeHaritasi() {
+  const [gorunur, setGorunur] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => e.isIntersecting && setGorunur(true),
+      { threshold: 0.25 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <section className="harita" id="nasil" ref={ref}>
+      <div className="wrap">
+        <p className="eyebrow">Farkımız</p>
+        <h2 className="h2">Tek bir seviye yok. Her konunun kendi seviyesi var.</h2>
+        <p className="alt">
+          Aşağıdaki tablo 2. sınıf bir çocuğun altı haftalık gerçek dağılımına
+          benziyor. Matematikte bir üst sınıfın soruları açılmışken, doğru
+          yazılışta hâlâ birinci sınıf tekrarı geliyor. Bunun için hiçbir ayar
+          yapılmadı.
+        </p>
+
+        <div className="harita-kutu">
+          {HARITA.map((k, i) => (
+            <div className="satir" key={k.ad}
+                 style={{ transitionDelay: `${i * 90}ms` }}>
+              <div className="satir-ad">
+                <span className="satir-baslik">{k.ad}</span>
+                <span className="satir-ders">{k.ders}</span>
+              </div>
+
+              <div className="satir-cizgi">
+                {[1, 2, 3].map((s) => (
+                  <span key={s} className={`nokta ${gorunur && k.seviye >= s ? 'dolu' : ''}`}
+                        style={{ transitionDelay: `${i * 90 + s * 70}ms` }} />
+                ))}
+                <em className="satir-etiket">
+                  {k.seviye === 1 && 'alt sınıf tekrarı ağırlıkta'}
+                  {k.seviye === 2 && 'kendi sınıfında'}
+                  {k.seviye === 3 && 'üst sınıf soruları açıldı'}
+                </em>
+              </div>
+
+              <div className="satir-oran">
+                <div className="oran-bar">
+                  <i style={{ width: gorunur ? `${k.oran}%` : '0%',
+                              transitionDelay: `${i * 90}ms` }} />
+                </div>
+                <span>%{k.oran}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="mini harita-not">
+          Sistem her konuda doğruluğu %75–85 arasında tutmayı hedefler. Bu aralık,
+          çocuğun zorlandığını hissettiği ama yapabildiği yerdir; altında
+          yılgınlık, üstünde sıkılma başlar.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function Akis() {
+  const adimlar = [
+    ['Sekiz soruluk tanışma',
+     'Çocuk oyuna başlar gibi başlar. Puan gösterilmez, not verilmez — sistem ' +
+     'yalnızca nereden başlayacağını anlar.'],
+    ['Her gün dört dakika',
+     'Günlük görev 16–20 soru. Sekiz farklı konudan karışık gelir; çünkü tek ' +
+     'konuya gömülmek kısa vadede kolay, uzun vadede daha az kalıcıdır.'],
+    ['Zorlandığı konu geri gelir',
+     'Yanlış yaptığı konu ertesi gün yine karşısına çıkar, ama daha kolay ' +
+     'sorularla. Bildiği konu seyrekleşir ve zorlaşır.'],
+  ];
+  return (
+    <section className="akis">
+      <div className="wrap">
+        <h2 className="h2">Günlük akış</h2>
+        <ol className="akis-liste">
+          {adimlar.map(([b, a], i) => (
+            <li key={b}>
+              <span className="akis-no">{i + 1}</span>
+              <div>
+                <h3>{b}</h3>
+                <p>{a}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+function Mufredat() {
+  const [acik, setAcik] = useState<string | null>('Matematik');
+  return (
+    <section className="mufredat" id="konular">
+      <div className="wrap">
+        <div className="mufredat-ust">
           <div>
-            <span className="inline-block rounded-full bg-mint-400/15 px-4 py-1.5 text-sm font-extrabold text-mint-600">
-              1–4. sınıf · Süre yok · Yarış yok
-            </span>
-
-            <h1 className="mt-5 text-4xl font-black leading-[1.1] tracking-tight text-slate-800 sm:text-5xl lg:text-6xl">
-              Her gün birkaç dakika.
-              <br />
-              <span className="text-brand-500">Baskı olmadan tekrar.</span>
-            </h1>
-
-            <p className="mt-6 max-w-lg text-lg font-semibold leading-relaxed text-slate-600">
-              Minizeki, ilkokul çocuğuna günlük kısa görevler vererek konuları
-              tekrar ettirir. Zorlandığı konuyu fark eder, orada daha çok pratik
-              yaptırır. Geri sayan sayaç, sıralama tablosu ve rakip yok —
-              yalnızca kendi hızında ferah bir çalışma alanı.
-            </p>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/giris" className="btn-primary text-lg">
-                Ücretsiz başla
-              </Link>
-              <a href="#nasil-calisir" className="btn-ghost text-lg">
-                Nasıl çalışır?
-              </a>
-            </div>
-
-            <p className="mt-4 text-sm font-bold text-slate-400">
-              Kayıt için yalnızca e-posta yeterli · Çocuk ekranında reklam yok
+            <h2 className="h2">44 konu, 1.422 soru</h2>
+            <p className="alt">
+              Konular MEB müfredatına göre açılır. Birinci sınıfta Fen yoktur,
+              üçüncü sınıfta başlar. İkinci sınıfta bölme yoktur. Sosyal Bilgiler
+              dördüncü sınıfta gelir. Sistem bunu bilir ve sınıfa uymayan soruyu
+              göstermez.
             </p>
           </div>
-
-          {/* Görsel taraf: soru kartı önizlemesi */}
-          <div className="relative">
-            <div className="card animate-float p-6 sm:p-8">
-              <div className="flex items-center justify-between">
-                <span className="rounded-full bg-brand-50 px-3 py-1 text-sm font-extrabold text-brand-700">
-                  Çarpım Tablosu
-                </span>
-                <span className="text-sm font-extrabold text-slate-400">
-                  Günlük görev · 2/5
-                </span>
-              </div>
-
-              <p className="mt-6 text-2xl font-black text-slate-800">
-                6 × 7 kaç eder?
-              </p>
-
-              <div className="mt-5 space-y-3">
-                <div className="opt opt-muted !min-h-[56px] !py-4 !text-lg">36</div>
-                <div className="opt opt-correct !min-h-[56px] !py-4 !text-lg">42</div>
-                <div className="opt !min-h-[56px] !py-4 !text-lg">48</div>
-              </div>
-
-              <p className="mt-5 text-center text-sm font-bold text-slate-400">
-                Acele etmesine gerek yok — sayaç çalışmıyor.
-              </p>
-            </div>
-
-            <div className="absolute -bottom-4 -left-4 hidden rounded-2xl bg-white px-4 py-3 shadow-lg ring-1 ring-slate-100 sm:block">
-              <p className="text-sm font-extrabold text-slate-700">809 soru</p>
-              <p className="text-xs font-bold text-slate-400">27 konu başlığı</p>
-            </div>
+          <div className="sayilar">
+            <div><b>44</b><span>konu</span></div>
+            <div><b>1.422</b><span>hazır soru</span></div>
+            <div><b>16</b><span>sınırsız üreten konu</span></div>
           </div>
         </div>
-      </section>
 
-      {/* ---------------- Farkımız ---------------- */}
-      <section className="border-y border-slate-100 bg-white py-16">
-        <div className="mx-auto max-w-6xl px-5">
-          <h2 className="text-center text-3xl font-black tracking-tight text-slate-800 sm:text-4xl">
-            Baskı çocuğu öğrenmekten uzaklaştırır
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-center text-lg font-semibold text-slate-600">
-            Çoğu eğitim uygulaması dikkat çekmek için süre, seri ve sıralama
-            kullanır. Küçük yaşta bu, öğrenmenin değil kaygının kaynağı olur.
-            Minizeki bunları kullanmıyor.
-          </p>
-
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { b: 'Sayaç yok', m: 'Soruda geri sayım yok. Düşünmek için istediği kadar zamanı var.' },
-              { b: 'Sıralama yok', m: 'Başka çocuklarla karşılaştırma yapılmaz. Ölçü kendi ilerlemesi.' },
-              { b: 'Seri bozma baskısı yok', m: 'Bir gün atlarsa kaybettiği bir şey olmaz, kaldığı yerden devam eder.' },
-              { b: 'Kısa oturum', m: 'Günlük görev birkaç dakika sürer. Düzen, süreden önemlidir.' },
-            ].map((x) => (
-              <div key={x.b} className="card p-6">
-                <p className="text-lg font-black text-slate-800">{x.b}</p>
-                <p className="mt-2 text-base font-semibold leading-relaxed text-slate-600">
-                  {x.m}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- Nasıl çalışır ---------------- */}
-      <section id="nasil-calisir" className="py-16">
-        <div className="mx-auto max-w-6xl px-5">
-          <h2 className="text-center text-3xl font-black tracking-tight text-slate-800 sm:text-4xl">
-            Nasıl çalışır?
-          </h2>
-
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
-            {ADIMLAR.map((a) => (
-              <div key={a.no} className="card p-7">
-                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-500 text-xl font-black text-white">
-                  {a.no}
-                </div>
-                <h3 className="mt-5 text-xl font-black text-slate-800">{a.baslik}</h3>
-                <p className="mt-2 text-base font-semibold leading-relaxed text-slate-600">
-                  {a.metin}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- Konular ---------------- */}
-      <section className="border-y border-slate-100 bg-white py-16">
-        <div className="mx-auto max-w-6xl px-5">
-          <h2 className="text-center text-3xl font-black tracking-tight text-slate-800 sm:text-4xl">
-            1–4. sınıf konuları
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-center text-lg font-semibold text-slate-600">
-            Dört alanda 27 konu başlığı, 809 soru. İçerik çocuğun seviyesine
-            göre açılır; sınıf atladıkça aynı hesapla devam eder.
-          </p>
-
-          <div className="mt-10 grid gap-5 sm:grid-cols-2">
-            {ALANLAR.map((alan) => {
-              const r = RENK_SINIF[alan.renk];
-              return (
-                <div key={alan.baslik} className="card p-7">
-                  <h3 className={`text-xl font-black ${r.text}`}>{alan.baslik}</h3>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {alan.konular.map((k) => (
-                      <span
-                        key={k}
-                        className={`rounded-xl ${r.bg} px-3 py-1.5 text-sm font-bold text-slate-700`}
-                      >
-                        {k}
-                      </span>
-                    ))}
+        <div className="dersler">
+          {DERSLER.map((d) => {
+            const ac = acik === d.ad;
+            return (
+              <div key={d.ad} className={`ders ${ac ? 'ac' : ''}`}
+                   style={{ ['--c' as any]: d.renk }}>
+                <button className="ders-bas" onClick={() => setAcik(ac ? null : d.ad)}
+                        aria-expanded={ac}>
+                  <span className="ders-ad">{d.ad}</span>
+                  <span className="ders-sinif">{d.sinif}. sınıf</span>
+                  <span className="ders-adet">{d.konular.length} konu</span>
+                  <span className="ders-ok" aria-hidden>{ac ? '−' : '+'}</span>
+                </button>
+                {ac && (
+                  <div className="ders-ic">
+                    {d.konular.map((k) => <span key={k}>{k}</span>)}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- Ebeveyn paneli ---------------- */}
-      <section className="py-16">
-        <div className="mx-auto max-w-6xl px-5">
-          <div className="grid items-center gap-10 lg:grid-cols-2">
-            <div>
-              <span className="inline-block rounded-full bg-brand-50 px-4 py-1.5 text-sm font-extrabold text-brand-700">
-                Ebeveyn paneli
-              </span>
-              <h2 className="mt-5 text-3xl font-black tracking-tight text-slate-800 sm:text-4xl">
-                Çocuğunuzun nerede zorlandığını görün
-              </h2>
-              <p className="mt-5 text-lg font-semibold leading-relaxed text-slate-600">
-                Hangi konuda ilerlediğini, hangisinde takıldığını ve günlük
-                çalışma geçmişini panelden takip edebilirsiniz. Panel dört haneli
-                bir PIN ile korunur — çocuk kendi başına giremez.
-              </p>
-
-              <ul className="mt-6 space-y-3">
-                {[
-                  'Konu konu ilerleme ve zorlanılan başlıklar',
-                  'Günlük çalışma geçmişi',
-                  'Birden fazla çocuk için ayrı profil',
-                  'PIN korumalı erişim',
-                ].map((m) => (
-                  <li key={m} className="flex items-start gap-3">
-                    <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-mint-400/20 text-sm font-black text-mint-600">
-                      ✓
-                    </span>
-                    <span className="text-base font-semibold text-slate-700">{m}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="card p-7">
-              <p className="text-sm font-extrabold uppercase tracking-wide text-slate-400">
-                Bu hafta
-              </p>
-              <div className="mt-5 space-y-4">
-                {[
-                  { k: 'Toplama–Çıkarma', d: 'İyi gidiyor', p: 88, renk: 'bg-mint-500' },
-                  { k: 'Çarpım Tablosu', d: 'Pratik sürüyor', p: 54, renk: 'bg-sun-500' },
-                  { k: 'Noktalama', d: 'Desteğe ihtiyacı var', p: 31, renk: 'bg-coral-500' },
-                ].map((x) => (
-                  <div key={x.k}>
-                    <div className="flex items-baseline justify-between">
-                      <span className="font-extrabold text-slate-800">{x.k}</span>
-                      <span className="text-sm font-bold text-slate-500">{x.d}</span>
-                    </div>
-                    <div className="mt-2 h-3 overflow-hidden rounded-full bg-slate-100">
-                      <div className={`h-full rounded-full ${x.renk}`} style={{ width: `${x.p}%` }} />
-                    </div>
-                  </div>
-                ))}
+                )}
               </div>
-              <p className="mt-6 text-sm font-bold text-slate-400">
-                Örnek görünümdür.
-              </p>
-            </div>
-          </div>
+            );
+          })}
         </div>
-      </section>
 
-      {/* ---------------- Ödül sistemi ---------------- */}
-      <section className="border-y border-slate-100 bg-white py-16">
-        <div className="mx-auto max-w-6xl px-5">
-          <h2 className="text-center text-3xl font-black tracking-tight text-slate-800 sm:text-4xl">
-            Motivasyon baskıyla değil, birikimle
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-center text-lg font-semibold text-slate-600">
-            Çocuk çalıştıkça yıldız kazanır, rozet toplar ve kendi odasını
-            eşyalarla düzenler. Kaybedilen bir şey yok — yalnızca biriken bir şey var.
+        <p className="mini">
+          Çarpım tablosu, saat, para gibi 16 konuda sorular anlık üretilir —
+          havuz tükenmez, aynı soru tekrar gelmez.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function Panel() {
+  return (
+    <section className="panel">
+      <div className="wrap panel-grid">
+        <div>
+          <p className="eyebrow">Ebeveyn paneli · PIN korumalı</p>
+          <h2 className="h2">Ne öğrendiğini değil, nerede takıldığını görün</h2>
+          <p className="alt">
+            Panel dört haneli bir PIN ile açılır; çocuk kendi başına giremez.
+            Konu konu doğruluk oranını, hangi konunun kolaylaştırıldığını ve
+            hangisinde üst sınıfa geçtiğini görürsünüz.
           </p>
+          <ul className="panel-liste">
+            <li>Konu bazlı doğruluk ve haftalık gelişim eğrisi</li>
+            <li>Zorlandığı konularda ne yapıldığının açıklaması</li>
+            <li>Günlük süre limiti (15 / 30 / 45 dakika)</li>
+            <li>Ders ağırlığı — “bu ay matematiğe yüklenelim” diyebilirsiniz</li>
+            <li>Odak modu — bir konuyu bir haftalığına öne çıkarır</li>
+            <li>Dört çocuğa kadar ayrı profil</li>
+          </ul>
+        </div>
 
-          <div className="mt-10 grid gap-5 sm:grid-cols-3">
-            {[
-              { b: 'Yıldızlar', m: 'Tamamlanan görevlerden biriken puanlar.' },
-              { b: 'Rozetler', m: 'Konu tamamlama ve düzenli çalışma rozetleri.' },
-              { b: 'Kendi odası', m: 'Kazandığı eşyalarla düzenlediği kişisel alan.' },
-            ].map((x) => (
-              <div key={x.b} className="card p-7 text-center">
-                <p className="text-xl font-black text-slate-800">{x.b}</p>
-                <p className="mt-2 text-base font-semibold leading-relaxed text-slate-600">
-                  {x.m}
-                </p>
+        <div className="rapor">
+          <div className="rapor-ust">
+            <span>Bu hafta</span><span className="rapor-pin">🔒 PIN</span>
+          </div>
+          {[
+            ['Toplama–Çıkarma', 93, 'iyi'],
+            ['Çarpım Tablosu', 88, 'iyi'],
+            ['Saat Okuma', 79, 'orta'],
+            ['Eş Anlamlı', 71, 'orta'],
+            ['Doğru Yazılış', 58, 'dusuk'],
+          ].map(([ad, o, d]) => (
+            <div className="rapor-satir" key={ad as string}>
+              <span className="rapor-ad">{ad}</span>
+              <div className="rapor-bar">
+                <i className={`b-${d}`} style={{ width: `${o}%` }} />
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- SSS ---------------- */}
-      <section className="py-16">
-        <div className="mx-auto max-w-3xl px-5">
-          <h2 className="text-center text-3xl font-black tracking-tight text-slate-800 sm:text-4xl">
-            Sık sorulanlar
-          </h2>
-
-          <div className="mt-10 space-y-4">
-            {SSS.map((x) => (
-              <details key={x.s} className="card group p-6">
-                <summary className="cursor-pointer list-none text-lg font-black text-slate-800 marker:hidden">
-                  <span className="flex items-center justify-between gap-4">
-                    {x.s}
-                    <span className="shrink-0 text-2xl font-black text-brand-400 transition-transform group-open:rotate-45">
-                      +
-                    </span>
-                  </span>
-                </summary>
-                <p className="mt-4 text-base font-semibold leading-relaxed text-slate-600">
-                  {x.c}
-                </p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- Kapanış CTA ---------------- */}
-      <section className="px-5 pb-20">
-        <div className="mx-auto max-w-4xl rounded-3xl bg-brand-500 px-8 py-14 text-center shadow-xl shadow-brand-500/25">
-          <h2 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
-            Bugün kısa bir görevle başlayın
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-lg font-semibold text-brand-50">
-            Kayıt için e-posta yeterli. Çocuğunuz için profil oluşturun, ilk
-            görev birkaç dakikada bitsin.
-          </p>
-          <Link
-            href="/giris"
-            className="btn mt-8 bg-white px-8 text-lg text-brand-600 shadow-lg hover:bg-brand-50"
-          >
-            Ücretsiz başla
-          </Link>
-        </div>
-      </section>
-
-      {/* ---------------- Footer ---------------- */}
-      <footer className="border-t border-slate-100 bg-white py-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 sm:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-xl bg-brand-500 text-base font-black text-white">
-              M
+              <span className={`rapor-oran o-${d}`}>%{o}</span>
             </div>
-            <span className="font-black text-slate-700">Minizeki</span>
-          </div>
-          <p className="text-sm font-bold text-slate-400">
-            1–4. sınıf için günlük kısa tekrar
+          ))}
+          <p className="rapor-uyari">
+            Doğru Yazılış’ta zorlanıyor. Bu konuda alt sınıf tekrarı
+            artırıldı.
           </p>
-          <Link href="/giris" className="text-sm font-extrabold text-brand-600 hover:text-brand-700">
-            Giriş yap →
-          </Link>
+          <p className="rapor-alt">Örnek görünüm</p>
         </div>
-      </footer>
-    </main>
+      </div>
+    </section>
+  );
+}
+
+function Odul() {
+  return (
+    <section className="odul">
+      <div className="wrap">
+        <h2 className="h2">Kaybedilen değil, biriken</h2>
+        <p className="alt">
+          Yıldız harcanır ama ceza olarak alınmaz. Can, enerji, geri sayım yok.
+          Çocuk bir gün gelmezse ertesi gün kaldığı yerden devam eder.
+        </p>
+        <div className="odul-grid">
+          {[
+            ['⭐', 'Yıldız', 'Tamamlanan görevden kazanılır, harcanır — asla eksilmez.'],
+            ['🏅', 'Rozet', 'Konu tamamlama ve düzenli çalışma rozetleri.'],
+            ['🏠', 'Zeki’nin Evi', 'Kazandığı yıldızlarla maskotun odasını döşer.'],
+            ['🛡️', 'Kalkan', 'Ayda iki kez, atlanan günü otomatik affeder.'],
+          ].map(([i, b, a]) => (
+            <div className="odul-kart" key={b as string}>
+              <span className="odul-ikon" aria-hidden>{i}</span>
+              <h3>{b}</h3>
+              <p>{a}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Sorular() {
+  const [acik, setAcik] = useState<number | null>(0);
+  return (
+    <section className="sss" id="sorular">
+      <div className="wrap wrap-dar">
+        <h2 className="h2">Sık sorulanlar</h2>
+        <div className="sss-liste">
+          {SSS.map((q, i) => {
+            const ac = acik === i;
+            return (
+              <div key={q.s} className={`sss-oge ${ac ? 'ac' : ''}`}>
+                <button onClick={() => setAcik(ac ? null : i)} aria-expanded={ac}>
+                  <span>{q.s}</span>
+                  <i aria-hidden>{ac ? '−' : '+'}</i>
+                </button>
+                {ac && <p>{q.c}</p>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Kapanis() {
+  return (
+    <section className="kapanis">
+      <div className="wrap wrap-dar">
+        <h2>Bugün dört dakikayla başlayın</h2>
+        <p>
+          Çocuğunuz için profil oluşturun, kısa tanışma turunu yapsın.
+          Sistem gerisini kendi ayarlar.
+        </p>
+        <Link href={GIRIS} className="btn btn-buyuk">Ücretsiz başla</Link>
+        <p className="mini">Kredi kartı istenmez · İstediğiniz zaman silebilirsiniz</p>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="footer">
+      <div className="wrap footer-in">
+        <div className="logo">
+          <span className="logo-m">M</span>
+          <span>Minizeki</span>
+        </div>
+        <span className="footer-not">1–4. sınıf için günlük kısa tekrar</span>
+        <Link href={GIRIS}>Giriş yap →</Link>
+      </div>
+    </footer>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function Stiller() {
+  return (
+    <style jsx global>{`
+      /* Tasarim yonu: cizgili okul defteri.
+         Kursun kalem grisi (#1e293b), defter mavisi (#2563eb),
+         ogretmen kirmizisi (#dc2626), kagit (#fbfcfe). */
+
+      .tanitim {
+        --kagit: #fbfcfe;
+        --murekkep: #16233a;
+        --soluk: #5b6a83;
+        --cizgi: #dde5f0;
+        --mavi: #2563eb;
+        --kirmizi: #dc2626;
+        --yesil: #059669;
+        --sari: #f59e0b;
+        --r: 14px;
+
+        background: var(--kagit);
+        color: var(--murekkep);
+        font-family: 'Nunito', system-ui, sans-serif;
+        line-height: 1.6;
+      }
+      .tanitim * { box-sizing: border-box; }
+
+      .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+      .wrap-dar { max-width: 760px; }
+
+      .tanitim h1, .tanitim h2, .tanitim h3 { line-height: 1.15; margin: 0; letter-spacing: -0.02em; }
+      .tanitim p { margin: 0; }
+
+      .h2 { font-size: clamp(26px, 3.4vw, 38px); font-weight: 900; }
+      .alt {
+        margin-top: 14px; max-width: 62ch;
+        font-size: 17px; font-weight: 600; color: var(--soluk);
+      }
+      .eyebrow {
+        font-size: 12px; font-weight: 900; letter-spacing: 0.12em;
+        text-transform: uppercase; color: var(--mavi); margin-bottom: 12px;
+      }
+      .mini { margin-top: 14px; font-size: 13px; font-weight: 700; color: #93a3ba; }
+
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 52px; padding: 0 26px; border-radius: 12px;
+        background: var(--mavi); color: #fff; font-weight: 900; font-size: 16px;
+        text-decoration: none; border: 2px solid var(--mavi);
+        transition: transform .15s, box-shadow .15s, background .15s;
+        box-shadow: 0 3px 0 #1d4ed8;
+      }
+      .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 0 #1d4ed8; }
+      .btn:active { transform: translateY(1px); box-shadow: 0 1px 0 #1d4ed8; }
+      .btn-sm { min-height: 42px; padding: 0 18px; font-size: 14px; box-shadow: 0 2px 0 #1d4ed8; }
+      .btn-buyuk { min-height: 60px; padding: 0 36px; font-size: 18px; }
+      .btn-ghost {
+        background: transparent; color: var(--murekkep);
+        border-color: var(--cizgi); box-shadow: none;
+      }
+      .btn-ghost:hover { border-color: var(--mavi); color: var(--mavi); box-shadow: none; }
+
+      /* --- Nav --- */
+      .nav {
+        position: sticky; top: 0; z-index: 40;
+        background: rgba(251,252,254,.92); backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--cizgi);
+      }
+      .nav-in { display: flex; align-items: center; gap: 28px; padding-block: 14px; }
+      .logo {
+        display: flex; align-items: center; gap: 9px;
+        font-weight: 900; font-size: 18px; color: var(--murekkep); text-decoration: none;
+      }
+      .logo-m {
+        display: grid; place-items: center; width: 30px; height: 30px;
+        border-radius: 9px; background: var(--mavi); color: #fff; font-size: 16px;
+      }
+      .nav-links { display: flex; gap: 22px; margin-left: auto; }
+      .nav-links a {
+        font-size: 14px; font-weight: 800; color: var(--soluk); text-decoration: none;
+      }
+      .nav-links a:hover { color: var(--mavi); }
+
+      /* --- Hero: defter cizgileri --- */
+      .hero {
+        padding: 68px 0 76px;
+        background:
+          repeating-linear-gradient(
+            to bottom, transparent 0 35px, var(--cizgi) 35px 36px
+          );
+        border-bottom: 1px solid var(--cizgi);
+      }
+      .hero-grid {
+        display: grid; grid-template-columns: 1.08fr .92fr;
+        gap: 56px; align-items: center;
+      }
+      .hero h1 {
+        font-size: clamp(34px, 5vw, 54px); font-weight: 900;
+      }
+      .vurgu {
+        color: var(--mavi);
+        /* Ogretmen kalemi gibi alti cizili */
+        background-image: linear-gradient(transparent 62%, rgba(37,99,235,.18) 0);
+      }
+      .lead {
+        margin-top: 20px; max-width: 56ch;
+        font-size: 17px; font-weight: 600; color: var(--soluk);
+      }
+      .lead strong { color: var(--murekkep); }
+      .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+
+      /* --- Demo karti --- */
+      .demo {
+        background: #fff; border: 2px solid var(--cizgi);
+        border-radius: 20px; padding: 22px;
+        box-shadow: 0 18px 44px -26px rgba(22,35,58,.35);
+      }
+      .demo-ust {
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 12px; font-weight: 900; color: var(--soluk);
+      }
+      .demo-bar {
+        height: 7px; border-radius: 99px; background: #eef2f8;
+        margin: 10px 0 18px; overflow: hidden;
+      }
+      .demo-bar i { display: block; height: 100%; background: var(--mavi); border-radius: 99px; }
+      .demo-soru { font-size: 30px; font-weight: 900; margin-bottom: 16px; }
+      .demo-siklar { display: grid; gap: 9px; }
+      .demo-sik {
+        width: 100%; text-align: left; padding: 15px 18px;
+        border: 2px solid var(--cizgi); border-radius: 12px; background: #fff;
+        font: inherit; font-size: 18px; font-weight: 800; color: var(--murekkep);
+        cursor: pointer; transition: .14s;
+      }
+      .demo-sik:hover:not(:disabled) { border-color: #a9c2f5; background: #f6f9ff; }
+      .demo-sik:disabled { cursor: default; }
+      .demo-sik.dogru { border-color: var(--yesil); background: #ecfdf5; color: var(--yesil); }
+      .demo-sik.yanlis { border-color: var(--kirmizi); background: #fef2f2; color: var(--kirmizi); }
+      .demo-sik.sonuk { opacity: .38; }
+      .demo-not {
+        margin-top: 14px; font-size: 13px; font-weight: 700; color: #93a3ba;
+      }
+      .demo-not.demo-iyi { color: var(--yesil); }
+      .demo-not strong { color: var(--murekkep); }
+
+      /* --- Fark --- */
+      .fark { padding: 76px 0; }
+      .fark-liste {
+        list-style: none; margin: 34px 0 0; padding: 0;
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+        border-top: 1px solid var(--cizgi); border-left: 1px solid var(--cizgi);
+      }
+      .fark-liste li {
+        padding: 22px;
+        border-right: 1px solid var(--cizgi); border-bottom: 1px solid var(--cizgi);
+      }
+      .fark-b {
+        display: block; font-weight: 900; font-size: 17px; margin-bottom: 5px;
+      }
+      .fark-b::before { content: '—'; color: var(--kirmizi); margin-right: 8px; }
+      .fark-a { font-size: 14px; font-weight: 600; color: var(--soluk); }
+
+      /* --- IMZA: seviye haritasi --- */
+      .harita { padding: 82px 0; background: #f4f7fc; border-block: 1px solid var(--cizgi); }
+      .harita-kutu {
+        margin-top: 34px; background: #fff;
+        border: 2px solid var(--cizgi); border-radius: 18px; overflow: hidden;
+      }
+      .satir {
+        display: grid; grid-template-columns: 200px 1fr 130px;
+        gap: 18px; align-items: center;
+        padding: 17px 22px; border-bottom: 1px solid var(--cizgi);
+      }
+      .satir:last-child { border-bottom: 0; }
+      .satir-baslik { display: block; font-weight: 900; font-size: 15px; }
+      .satir-ders { font-size: 12px; font-weight: 700; color: #93a3ba; }
+
+      .satir-cizgi { display: flex; align-items: center; gap: 7px; }
+      .nokta {
+        width: 26px; height: 8px; border-radius: 99px; background: #e6ecf5;
+        transition: background .45s ease;
+      }
+      .nokta.dolu { background: var(--mavi); }
+      .satir-etiket {
+        margin-left: 10px; font-size: 12px; font-weight: 800;
+        font-style: normal; color: var(--soluk);
+      }
+
+      .satir-oran { display: flex; align-items: center; gap: 9px; }
+      .oran-bar {
+        flex: 1; height: 8px; border-radius: 99px; background: #eef2f8; overflow: hidden;
+      }
+      .oran-bar i {
+        display: block; height: 100%; border-radius: 99px; background: var(--yesil);
+        transition: width .9s cubic-bezier(.22,.61,.36,1);
+      }
+      .satir-oran span { font-size: 13px; font-weight: 900; min-width: 36px; text-align: right; }
+      .harita-not { max-width: 66ch; }
+
+      /* --- Akis --- */
+      .akis { padding: 76px 0; }
+      .akis-liste {
+        list-style: none; margin: 34px 0 0; padding: 0;
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px;
+      }
+      .akis-liste li { display: flex; gap: 15px; }
+      .akis-no {
+        flex: none; display: grid; place-items: center;
+        width: 34px; height: 34px; border-radius: 10px;
+        background: var(--murekkep); color: #fff; font-weight: 900; font-size: 15px;
+      }
+      .akis-liste h3 { font-size: 17px; font-weight: 900; margin-bottom: 6px; }
+      .akis-liste p { font-size: 14px; font-weight: 600; color: var(--soluk); }
+
+      /* --- Mufredat --- */
+      .mufredat { padding: 76px 0; background: #f4f7fc; border-block: 1px solid var(--cizgi); }
+      .mufredat-ust {
+        display: grid; grid-template-columns: 1.25fr .75fr; gap: 40px; align-items: end;
+      }
+      .sayilar { display: flex; gap: 26px; }
+      .sayilar b { display: block; font-size: 30px; font-weight: 900; line-height: 1; }
+      .sayilar span { font-size: 12px; font-weight: 800; color: var(--soluk); }
+
+      .dersler { margin-top: 32px; display: grid; gap: 9px; }
+      .ders {
+        background: #fff; border: 2px solid var(--cizgi); border-radius: 14px;
+        overflow: hidden; transition: border-color .18s;
+      }
+      .ders.ac { border-color: var(--c); }
+      .ders-bas {
+        width: 100%; display: flex; align-items: center; gap: 14px;
+        padding: 16px 20px; background: none; border: 0; cursor: pointer;
+        font: inherit; text-align: left;
+      }
+      .ders-ad {
+        font-weight: 900; font-size: 17px;
+        border-left: 4px solid var(--c); padding-left: 11px;
+      }
+      .ders-sinif {
+        font-size: 12px; font-weight: 800; color: #fff; background: var(--c);
+        padding: 3px 9px; border-radius: 99px;
+      }
+      .ders-adet { font-size: 13px; font-weight: 700; color: var(--soluk); }
+      .ders-ok {
+        margin-left: auto; font-size: 22px; font-weight: 900; color: var(--soluk);
+        line-height: 1;
+      }
+      .ders-ic {
+        display: flex; flex-wrap: wrap; gap: 7px;
+        padding: 0 20px 18px 35px;
+      }
+      .ders-ic span {
+        font-size: 13px; font-weight: 700; color: var(--soluk);
+        background: #f4f7fc; border: 1px solid var(--cizgi);
+        padding: 5px 11px; border-radius: 8px;
+      }
+
+      /* --- Panel --- */
+      .panel { padding: 82px 0; }
+      .panel-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 52px; align-items: center;
+      }
+      .panel-liste { list-style: none; margin: 24px 0 0; padding: 0; display: grid; gap: 11px; }
+      .panel-liste li {
+        position: relative; padding-left: 26px;
+        font-size: 15px; font-weight: 700; color: var(--soluk);
+      }
+      .panel-liste li::before {
+        content: '✓'; position: absolute; left: 0;
+        color: var(--yesil); font-weight: 900;
+      }
+
+      .rapor {
+        background: #fff; border: 2px solid var(--cizgi); border-radius: 18px;
+        padding: 22px; box-shadow: 0 18px 44px -28px rgba(22,35,58,.3);
+      }
+      .rapor-ust {
+        display: flex; justify-content: space-between;
+        font-size: 12px; font-weight: 900; color: var(--soluk);
+        padding-bottom: 13px; border-bottom: 1px solid var(--cizgi); margin-bottom: 15px;
+      }
+      .rapor-satir {
+        display: grid; grid-template-columns: 128px 1fr 44px;
+        gap: 11px; align-items: center; margin-bottom: 11px;
+      }
+      .rapor-ad { font-size: 13px; font-weight: 800; }
+      .rapor-bar { height: 8px; border-radius: 99px; background: #eef2f8; overflow: hidden; }
+      .rapor-bar i { display: block; height: 100%; border-radius: 99px; }
+      .b-iyi { background: var(--yesil); }
+      .b-orta { background: var(--sari); }
+      .b-dusuk { background: var(--kirmizi); }
+      .rapor-oran { font-size: 12px; font-weight: 900; text-align: right; }
+      .o-iyi { color: var(--yesil); } .o-orta { color: var(--sari); } .o-dusuk { color: var(--kirmizi); }
+      .rapor-uyari {
+        margin-top: 15px; padding: 11px 13px; border-radius: 10px;
+        background: #fffbeb; border: 1px solid #fde68a;
+        font-size: 13px; font-weight: 700; color: #92400e;
+      }
+      .rapor-alt { margin-top: 11px; font-size: 11px; font-weight: 700; color: #b6c2d3; }
+
+      /* --- Odul --- */
+      .odul { padding: 76px 0; background: #f4f7fc; border-block: 1px solid var(--cizgi); }
+      .odul-grid {
+        margin-top: 32px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+      }
+      .odul-kart {
+        background: #fff; border: 2px solid var(--cizgi);
+        border-radius: 14px; padding: 22px;
+      }
+      .odul-ikon { font-size: 28px; display: block; margin-bottom: 11px; }
+      .odul-kart h3 { font-size: 16px; font-weight: 900; margin-bottom: 6px; }
+      .odul-kart p { font-size: 13px; font-weight: 600; color: var(--soluk); }
+
+      /* --- SSS --- */
+      .sss { padding: 76px 0; }
+      .sss-liste { margin-top: 28px; border-top: 1px solid var(--cizgi); }
+      .sss-oge { border-bottom: 1px solid var(--cizgi); }
+      .sss-oge button {
+        width: 100%; display: flex; align-items: center; gap: 18px;
+        padding: 19px 0; background: none; border: 0; cursor: pointer;
+        font: inherit; font-size: 16px; font-weight: 800; text-align: left;
+        color: var(--murekkep);
+      }
+      .sss-oge i {
+        margin-left: auto; font-size: 22px; font-weight: 900;
+        color: var(--soluk); font-style: normal; line-height: 1;
+      }
+      .sss-oge.ac i { color: var(--mavi); }
+      .sss-oge p {
+        padding: 0 40px 19px 0; font-size: 15px; font-weight: 600; color: var(--soluk);
+      }
+
+      /* --- Kapanis --- */
+      .kapanis { padding: 88px 0; text-align: center; background: var(--murekkep); color: #fff; }
+      .kapanis h2 { font-size: clamp(28px, 4vw, 40px); font-weight: 900; }
+      .kapanis p { margin: 16px auto 28px; max-width: 46ch; font-weight: 600; color: #b3c0d4; }
+      .kapanis .btn { background: #fff; color: var(--murekkep); border-color: #fff; box-shadow: 0 3px 0 #c7d3e6; }
+      .kapanis .mini { color: #7e8ea6; }
+
+      /* --- Footer --- */
+      .footer { border-top: 1px solid var(--cizgi); padding: 26px 0; }
+      .footer-in { display: flex; align-items: center; gap: 20px; }
+      .footer-not { font-size: 13px; font-weight: 700; color: var(--soluk); }
+      .footer a {
+        margin-left: auto; font-size: 14px; font-weight: 800;
+        color: var(--mavi); text-decoration: none;
+      }
+
+      /* --- Erisilebilirlik --- */
+      .tanitim a:focus-visible, .tanitim button:focus-visible {
+        outline: 3px solid var(--mavi); outline-offset: 3px; border-radius: 8px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .tanitim *, .tanitim *::before { transition: none !important; animation: none !important; }
+      }
+
+      /* --- Mobil --- */
+      @media (max-width: 900px) {
+        .hero-grid, .panel-grid, .mufredat-ust { grid-template-columns: 1fr; gap: 36px; }
+        .fark-liste, .akis-liste { grid-template-columns: 1fr 1fr; }
+        .odul-grid { grid-template-columns: 1fr 1fr; }
+        .nav-links { display: none; }
+      }
+      @media (max-width: 620px) {
+        .fark-liste, .akis-liste, .odul-grid { grid-template-columns: 1fr; }
+        .satir { grid-template-columns: 1fr; gap: 9px; }
+        .satir-oran { max-width: 220px; }
+        .sayilar { flex-wrap: wrap; gap: 18px; }
+        .hero { padding: 44px 0 52px; }
+        .ders-bas { flex-wrap: wrap; gap: 9px; }
+        .ders-ok { margin-left: 0; }
+      }
+    `}</style>
   );
 }
