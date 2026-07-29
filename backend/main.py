@@ -57,6 +57,17 @@ async def api_oneki_uyumu(request: Request, call_next):
 @app.on_event("startup")
 def startup():
     init_db()
+
+    # Sema guncelleme: modele yeni alan eklendiginde mevcut veritabanina
+    # da eklenmeli. Yoksa "no such column" hatasi tum uygulamayi coker.
+    # Bu adim veri kaybetmez, sadece eksik kolonlari tamamlar.
+    try:
+        from models.migrate import semayi_guncelle
+        yeni = semayi_guncelle()
+        if yeni:
+            log.info("Sema guncellendi: %s", ", ".join(yeni))
+    except Exception as e:
+        log.error("Sema guncellenemedi (%s: %s)", type(e).__name__, e)
     log.info("Minizeki API hazir | port=%s | db=%s",
              cfg.PORT, cfg.DATABASE_URL.split("://")[0])
     if not cfg.ADMIN_PASSWORD:
