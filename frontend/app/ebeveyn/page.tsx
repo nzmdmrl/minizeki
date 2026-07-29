@@ -193,6 +193,8 @@ function Dashboard({ profileId }: { profileId: string }) {
 function Rapor({ d }: { d: any }) {
   return (
     <div className="grid gap-4">
+      {/* Okuma ve anlama — ses tanima YOK, sure olcumu ile hesaplanir */}
+      {d.reading?.has_data && <OkumaBolumu r={d.reading} />}
       {/* Bugun */}
       <section className="card p-5">
         <h2 className="mb-3 font-black text-slate-700">Bugün</h2>
@@ -332,6 +334,132 @@ function Rapor({ d }: { d: any }) {
         </section>
       )}
     </div>
+  );
+}
+
+const HIZ_DURUM: Record<string, { ad: string; renk: string }> = {
+  gelisiyor: { ad: 'Gelişiyor', renk: 'text-sun-500' },
+  beklenen: { ad: 'Beklenen aralıkta', renk: 'text-mint-600' },
+  hizli: { ad: 'Sınıfın üzerinde', renk: 'text-brand-600' },
+  veri_yok: { ad: 'Veri yok', renk: 'text-slate-400' },
+};
+
+function OkumaBolumu({ r }: { r: any }) {
+  const durum = HIZ_DURUM[r.wpm_status] || HIZ_DURUM.veri_yok;
+  const maxWpm = Math.max(r.wpm_norm.max, ...r.speed_history.map((x: any) => x.wpm), 1);
+
+  return (
+    <section className="card p-5">
+      <div className="mb-1 flex items-baseline justify-between">
+        <h2 className="font-black text-slate-700">📖 Okuma ve Anlama</h2>
+        <span className="text-xs font-bold text-slate-400">
+          {r.stories_read} hikâye · {r.total} tur
+        </span>
+      </div>
+      <p className="mb-4 text-xs font-bold text-slate-400">
+        Okuma hızı süre ölçümüyle hesaplanır — mikrofon veya ses kaydı kullanılmaz.
+      </p>
+
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <div className="rounded-2xl bg-slate-50 p-4 text-center">
+          <p className="text-2xl font-black text-slate-800">
+            {r.avg_wpm ?? '—'}
+            <span className="ml-1 text-xs font-bold text-slate-400">kelime/dk</span>
+          </p>
+          <p className={`text-xs font-black ${durum.renk}`}>{durum.ad}</p>
+          <p className="mt-0.5 text-[11px] font-bold text-slate-400">
+            {r.wpm_norm.min}–{r.wpm_norm.max} beklenir
+          </p>
+        </div>
+        <div className="rounded-2xl bg-slate-50 p-4 text-center">
+          <p className="text-2xl font-black text-slate-800">%{r.avg_accuracy}</p>
+          <p className="text-xs font-black text-slate-500">anlama</p>
+          <p className="mt-0.5 text-[11px] font-bold text-slate-400">
+            ortalama doğruluk
+          </p>
+        </div>
+      </div>
+
+      {/* Hiz grafigi — norm bandi gri seritle gosterilir */}
+      {r.speed_history.length >= 2 && (
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">
+            Okuma hızı gelişimi
+          </p>
+          <div className="relative flex h-28 items-end gap-1.5 rounded-xl
+                          bg-slate-50 p-2">
+            {/* Beklenen aralik bandi */}
+            <div className="pointer-events-none absolute inset-x-2 rounded
+                            bg-mint-400/15"
+                 style={{
+                   bottom: `${(r.wpm_norm.min / maxWpm) * 100 * 0.86 + 8}%`,
+                   height: `${((r.wpm_norm.max - r.wpm_norm.min) / maxWpm) * 100 * 0.86}%`,
+                 }} />
+            {r.speed_history.map((h: any, i: number) => (
+              <div key={i} className="group relative flex flex-1 flex-col
+                                      items-center justify-end">
+                <div className="pointer-events-none absolute bottom-full mb-1 hidden
+                                whitespace-nowrap rounded bg-slate-800 px-2 py-1
+                                text-[10px] font-bold text-white group-hover:block">
+                  {h.wpm} kelime/dk
+                </div>
+                <div className={`w-full rounded-t ${
+                  h.wpm < r.wpm_norm.min ? 'bg-sun-400'
+                  : h.wpm <= r.wpm_norm.max ? 'bg-mint-500' : 'bg-brand-500'}`}
+                     style={{ height: `${Math.max((h.wpm / maxWpm) * 100 * 0.86, 4)}%` }} />
+              </div>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] font-bold text-slate-400">
+            Yeşil bant: {r.wpm_norm.min}–{r.wpm_norm.max} kelime/dk arası beklenen aralık
+          </p>
+        </div>
+      )}
+
+      {/* Soru turune gore */}
+      {r.types?.length > 0 && (
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">
+            Soru türüne göre
+          </p>
+          <div className="grid gap-2">
+            {r.types.map((t: any) => (
+              <div key={t.kod} className="flex items-center gap-2">
+                <span className="w-32 shrink-0 text-sm font-extrabold text-slate-600">
+                  {t.ad}
+                </span>
+                <ProgressBar value={t.accuracy ?? 0} className="h-2.5 flex-1" />
+                <span className={`w-10 shrink-0 text-right text-xs font-black ${
+                  (t.accuracy ?? 0) >= 75 ? 'text-mint-600'
+                  : (t.accuracy ?? 0) >= 55 ? 'text-slate-500' : 'text-coral-500'}`}>
+                  %{t.accuracy}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {r.advice && (
+        <div className="rounded-2xl bg-brand-50 px-4 py-3">
+          <p className="text-sm font-bold leading-relaxed text-brand-700">
+            {r.advice}
+          </p>
+        </div>
+      )}
+
+      {r.suspicious_count > 0 && (
+        <p className="mt-3 rounded-xl bg-sun-400/10 px-3 py-2 text-xs
+                      font-bold text-sun-600">
+          {r.suspicious_count} turda metin okunmadan geçilmiş görünüyor.
+        </p>
+      )}
+
+      <p className="mt-3 text-[11px] font-bold text-slate-400">
+        Son okuma: {r.last.title} · %{r.last.accuracy}
+        {r.last.wpm ? ` · ${r.last.wpm} kelime/dk` : ' · içinden okudu'}
+      </p>
+    </section>
   );
 }
 

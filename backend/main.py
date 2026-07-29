@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 import config as cfg
 from models import init_db
-from api import auth, profile, play, parent, house, admin
+from api import auth, profile, play, parent, house, admin, reading
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s")
@@ -32,6 +32,7 @@ app.include_router(play.router)
 app.include_router(parent.router)
 app.include_router(house.router)
 app.include_router(admin.router)
+app.include_router(reading.router)
 
 
 # Reverse proxy'ler (Traefik, nginx) /api onekini keserek isteyi iletebilir.
@@ -88,7 +89,8 @@ def _otomatik_seed():
     try:
         from models import SessionLocal, Question
         from content.seed import (
-            seed_categories, seed_badges, seed_house, seed_questions, dogrula,
+            seed_categories, seed_badges, seed_house, seed_questions,
+            seed_stories, dogrula,
         )
         db = SessionLocal()
         try:
@@ -96,6 +98,7 @@ def _otomatik_seed():
             k = seed_categories(db)
             b = seed_badges(db)
             h = seed_house(db)
+            seed_stories(db)
             eklenen, _ = seed_questions(db)
             sonra = db.query(Question).count()
 

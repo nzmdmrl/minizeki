@@ -211,6 +211,58 @@ def main():
     r = c.get(f"/api/parent/export?profile_id={pid}", headers=PH)
     check("veri export 200", r.status_code == 200)
 
+    # --- Okuma ve Anlama ---
+    print("\n[Okuma ve Anlama]")
+    rr = c.get(f"/api/reading/story?profile_id={pid}", headers=H)
+    check("metin alma 200", rr.status_code == 200, rr.text[:80])
+    if rr.status_code == 200:
+        st = rr.json()
+        check(f"metin var ({st['word_count']} kelime)", st["word_count"] > 15)
+        check("5 soru bagli", st["question_count"] == 5)
+
+        rq = c.get(f"/api/reading/questions?story_id={st['id']}"
+                   f"&profile_id={pid}", headers=H)
+        check("sorular 200", rq.status_code == 200)
+        oq = rq.json()["questions"]
+        check(f"5 soru geldi ({len(oq)})", len(oq) == 5)
+        check("dogru cevap SIZMIYOR",
+              all("answer_index" not in x for x in oq))
+        turler = {x["type"] for x in oq}
+        check(f"soru turleri cesitli ({len(turler)})", len(turler) >= 2)
+
+        # Sureli okuma
+        rc = c.post("/api/reading/complete", headers=H, json={
+            "profile_id": pid, "story_id": st["id"], "mode": "timed",
+            "duration_ms": 45000, "answers": [0, 0, 0, 0, 0]})
+        check("okuma tamamlama 200", rc.status_code == 200, rc.text[:80])
+        if rc.status_code == 200:
+            dd = rc.json()
+            check("anlama sonucu var", "accuracy" in dd)
+            check("odul verildi", len(dd.get("rewards", [])) > 0)
+
+        # Sessiz okuma: hiz olculmemeli
+        rr2 = c.get(f"/api/reading/story?profile_id={pid}", headers=H)
+        st2 = rr2.json()
+        rc2 = c.post("/api/reading/complete", headers=H, json={
+            "profile_id": pid, "story_id": st2["id"], "mode": "silent",
+            "answers": [0, 0, 0, 0, 0]})
+        check("sessiz okumada hiz yok",
+              rc2.status_code == 200 and rc2.json().get("speed") is None)
+
+        # Imkansiz hizli -> supheli
+        rr3 = c.get(f"/api/reading/story?profile_id={pid}", headers=H)
+        rc3 = c.post("/api/reading/complete", headers=H, json={
+            "profile_id": pid, "story_id": rr3.json()["id"], "mode": "timed",
+            "duration_ms": 2000, "answers": [0, 0, 0, 0, 0]})
+        check("okumadan gecme tespit edildi",
+              rc3.status_code == 200 and rc3.json().get("suspicious") is True)
+
+    # Okuma gunluk goreve GIRMEMELI
+    rq2 = c.get(f"/api/quest/today?profile_id={pid}", headers=H)
+    if rq2.status_code == 200:
+        kats = {x["category_id"] for x in rq2.json()["questions"]}
+        check("okuma gunluk goreve girmiyor", "okuma" not in kats)
+
     # --- Tur ici tekrar (regresyon) ---
     # Bug: ayni tur icinde ayni soru birden fazla kez gelebiliyordu.
     # Cocuk 10 soruluk turda 7 kez ayni soruyu goruyordu.

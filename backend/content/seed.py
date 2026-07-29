@@ -26,6 +26,8 @@ from content import sorular_fen4 as sf4  # noqa: E402
 from content import sorular_sosyal as ss  # noqa: E402
 from content import sorular_hayat_ek2 as she2  # noqa: E402
 from content import sorular_turkce_ek2 as ste2  # noqa: E402
+from content.metinler_12 import METINLER_1, METINLER_2  # noqa: E402
+from content.metinler_34 import METINLER_3, METINLER_4  # noqa: E402
 
 
 # kategori_id -> soru listesi
@@ -84,6 +86,7 @@ def seed_categories(db) -> int:
         c.generator_key = gen
         c.has_upper_grade = upper
         c.is_free = free
+        c.in_daily_quest = (cid != "okuma")   # okuma gunluk goreve girmez
         c.sort_order = order
     db.commit()
     return n
@@ -119,6 +122,47 @@ def seed_house(db) -> int:
         i.sort_order = order
     db.commit()
     return n
+
+
+def seed_stories(db) -> tuple[int, int]:
+    """Okuma metinlerini ve anlama sorularini yukler. Idempotent."""
+    from models import Story, StoryQuestion
+
+    eklenen = guncellenen = 0
+    sira = 0
+    for liste in (METINLER_1, METINLER_2, METINLER_3, METINLER_4):
+        for (sid, baslik, metin, gmin, gmax, seviye, sorular) in liste:
+            sira += 1
+            temiz = metin.strip()
+            kelime = len(temiz.split())
+
+            st = db.get(Story, sid)
+            if st is None:
+                st = Story(id=sid)
+                db.add(st)
+                eklenen += 1
+            else:
+                guncellenen += 1
+            st.title = baslik
+            st.text = temiz
+            st.word_count = kelime
+            st.grade_min = gmin
+            st.grade_max = gmax
+            st.level = seviye
+            st.status = "live"
+            st.sort_order = sira
+
+            # Sorular: her zaman yeniden yazilir (metin degisirse tutarli kalsin)
+            db.query(StoryQuestion).filter(
+                StoryQuestion.story_id == sid).delete(synchronize_session=False)
+            for i, (tur, soru, siklar, ai, expl) in enumerate(sorular):
+                db.add(StoryQuestion(
+                    id=f"{sid}_q{i+1}", story_id=sid, type=tur,
+                    text=soru, options=list(siklar), answer_index=ai,
+                    explanation=expl, sort_order=i,
+                ))
+    db.commit()
+    return eklenen, guncellenen
 
 
 def seed_questions(db, reset: bool = False) -> tuple[int, int]:
@@ -176,8 +220,14 @@ def dogrula(db) -> list[str]:
     """Seed sonrasi tutarlilik kontrolu."""
     hatalar = []
 
+    # Okuma kategorisi Question tablosunu kullanmaz; Story + StoryQuestion
+    # tablolarindan beslenir. Bu yuzden soru sayisi kontrolunden muaftir.
+    OZEL_KATEGORILER = {"okuma"}
+
     # 1. Her yazili kategorinin sorusu var mi?
     for c in db.query(Category).filter(Category.is_procedural.is_(False)).all():
+        if c.id in OZEL_KATEGORILER:
+            continue
         n = db.query(Question).filter(Question.category_id == c.id,
                                       Question.status == "live").count()
         if n == 0:
@@ -215,6 +265,8 @@ def dogrula(db) -> list[str]:
     # sadece metne bakarsa, "Hangisi dogru yazilmistir?" gibi kalip sorularin
     # ilki alinip gerisi sessizce atlanir. Sayilar tutmazsa burada patlar.
     for cid, sorular in SORU_BANKASI.items():
+        if cid in OZEL_KATEGORILER:
+            continue
         beklenen = len(sorular)
         gercek = db.query(Question).filter(Question.category_id == cid).count()
         if gercek < beklenen:
@@ -224,6 +276,23 @@ def dogrula(db) -> list[str]:
                 f"'{ad}': kaynakta {beklenen} soru var ama DB'de {gercek} "
                 f"({beklenen - gercek} soru eksik!)"
             )
+
+    # 6. Okuma metinleri saglikli mi?
+    from models import Story, StoryQuestion
+    for st in db.query(Story).filter(Story.status == "live").all():
+        n = db.query(StoryQuestion).filter(
+            StoryQuestion.story_id == st.id).count()
+        if n != 5:
+            hatalar.append(f"'{st.title}' metninde {n} soru var (5 olmali)")
+        if st.word_count < 15:
+            hatalar.append(f"'{st.title}' cok kisa ({st.word_count} kelime) "
+                           f"- okuma hizi olculemez")
+    for g in (1, 2, 3, 4):
+        n = db.query(Story).filter(Story.grade_min <= g, Story.grade_max >= g,
+                                   Story.status == "live").count()
+        if n < 3:
+            hatalar.append(f"{g}. sinif icin sadece {n} okuma metni var "
+                           f"(en az 3 olmali)")
 
     return hatalar
 
@@ -248,6 +317,12 @@ def main():
         print("Zeki'nin Evi esyalari...")
         n = seed_house(db)
         print(f"  {n} yeni, toplam {db.query(HouseItem).count()}")
+
+        print("Okuma metinleri...")
+        e, g = seed_stories(db)
+        from models import Story, StoryQuestion
+        print(f"  {e} yeni, {g} guncellendi -> {db.query(Story).count()} metin, "
+              f"{db.query(StoryQuestion).count()} anlama sorusu")
 
         print("Soru bankasi...")
         eklenen, atlanan = seed_questions(db, reset)

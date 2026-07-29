@@ -88,8 +88,12 @@ function CategoryCard({ c }: { c: CategoryItem }) {
     );
   }
 
+  // Okuma kategorisi farkli calisir: metin okunur, sure olculur,
+  // ardindan anlama sorulari gelir. Bu yuzden ayri bir ekrana gider.
+  const hedef = c.id === 'okuma' ? '/okuma' : `/oyna/${c.id}`;
+
   return (
-    <Link href={`/oyna/${c.id}`}
+    <Link href={hedef}
           className="card flex items-center gap-3 p-4 transition
                      hover:-translate-y-0.5 hover:shadow-md">
       {inner}

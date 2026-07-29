@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 import config as cfg
 from models import (
     get_db, Account, Profile, Category, AnswerLog, ProfileSkill,
-    DailyQuest, ProfileBadge, Badge,
+    DailyQuest, ProfileBadge, Badge, ReadingSession, Story,
 )
 from engine import kategoriler_for_grade, normalize, MEDAL_NAMES, MEDAL_ICONS
 from .security import require_pin, get_profile_or_404
@@ -126,7 +126,11 @@ def dashboard(profile_id: str, acc: Account = Depends(require_pin),
     rozetler = (db.query(Badge).join(ProfileBadge, ProfileBadge.badge_id == Badge.id)
                 .filter(ProfileBadge.profile_id == p.id).all())
 
+    # --- Okuma ve anlama ---
+    okuma = _okuma_ozeti(db, p)
+
     return {
+        "reading": okuma,
         "profile": {
             "id": p.id, "name": p.name, "grade": p.grade,
             "avatar_id": p.avatar_id, "streak": p.streak_days,
@@ -159,6 +163,121 @@ def dashboard(profile_id: str, acc: Account = Depends(require_pin),
             "focus_category_id": p.focus_category_id,
             "focus_until": str(p.focus_until) if p.focus_until else None,
         },
+    }
+
+
+# Sinif bazli okuma hizi normlari (kelime/dakika) — yaklasik degerler.
+# Ebeveyne ham sayi degil, "beklenen aralikta" seklinde sunulur.
+WPM_NORM = {1: (40, 60), 2: (60, 90), 3: (90, 120), 4: (110, 140)}
+
+
+def _okuma_ozeti(db: Session, p: Profile) -> dict:
+    """
+    Okuma gecmisi ozeti.
+
+    NOT: Okuma hizi ses tanimayla degil, SURE OLCUMUYLE hesaplanir.
+    Cocuk "Basla"ya basar, okur, "Okudum"a basar. Bu yontem izin
+    gerektirmez, her cihazda calisir ve olcum kesindir.
+    """
+    oturumlar = (db.query(ReadingSession)
+                 .filter(ReadingSession.profile_id == p.id)
+                 .order_by(ReadingSession.created_at).all())
+    if not oturumlar:
+        return {"has_data": False, "total": 0}
+
+    alt, ust = WPM_NORM.get(p.grade, (60, 90))
+
+    # Hiz gecmisi (supheli ve sessiz okumalar haric)
+    hiz_gecmis = [
+        {"date": str(o.created_at)[:10], "wpm": o.wpm}
+        for o in oturumlar
+        if o.wpm and not o.suspicious and o.mode == "timed"
+    ][-12:]
+
+    # Anlama gecmisi
+    anlama_gecmis = [
+        {"date": str(o.created_at)[:10],
+         "accuracy": round(100 * o.correct_count / max(1, o.total_questions))}
+        for o in oturumlar
+    ][-12:]
+
+    son_hizlar = [x["wpm"] for x in hiz_gecmis[-3:]]
+    ort_hiz = round(sum(son_hizlar) / len(son_hizlar)) if son_hizlar else None
+
+    toplam_dogru = sum(o.correct_count for o in oturumlar)
+    toplam_soru = sum(o.total_questions for o in oturumlar)
+    ort_anlama = round(100 * toplam_dogru / max(1, toplam_soru))
+
+    # Soru turune gore guclu/zayif alan
+    tur_toplam = {"bilgi": [0, 0], "cikarim": [0, 0], "kelime": [0, 0]}
+    for o in oturumlar:
+        if not o.type_breakdown:
+            continue
+        for tur, v in o.type_breakdown.items():
+            if tur in tur_toplam:
+                tur_toplam[tur][0] += v.get("dogru", 0)
+                tur_toplam[tur][1] += v.get("toplam", 0)
+
+    TUR_AD = {"bilgi": "Metinde bulma", "cikarim": "Çıkarım yapma",
+              "kelime": "Kelime bilgisi"}
+    turler = [
+        {"kod": k, "ad": TUR_AD[k],
+         "accuracy": round(100 * v[0] / v[1]) if v[1] else None,
+         "total": v[1]}
+        for k, v in tur_toplam.items() if v[1] > 0
+    ]
+
+    # Hiz durumu
+    if ort_hiz is None:
+        durum = "veri_yok"
+    elif ort_hiz < alt:
+        durum = "gelisiyor"
+    elif ort_hiz <= ust:
+        durum = "beklenen"
+    else:
+        durum = "hizli"
+
+    # Ebeveyne oneri
+    oneri = None
+    if ort_anlama < 60 and len(oturumlar) >= 3:
+        oneri = ("Anlama oranı düşük seyrediyor. Bu hafta birlikte okumayı "
+                 "deneyin: siz bir paragraf, çocuğunuz bir paragraf. "
+                 "Sonra hikâyeyi birbirinize anlatın.")
+    elif durum == "gelisiyor" and len(hiz_gecmis) >= 3:
+        oneri = ("Okuma hızı yaşına göre gelişme aşamasında. Günlük kısa "
+                 "okumalar en çok işe yarayan yöntemdir; hız zamanla artar. "
+                 "Acele ettirmeyin.")
+    elif any(t["kod"] == "cikarim" and (t["accuracy"] or 100) < 55
+             for t in turler):
+        oneri = ("Metinde açıkça yazan bilgileri buluyor ama çıkarım "
+                 "sorularında zorlanıyor. Okuduktan sonra 'Sence neden "
+                 "böyle yaptı?' gibi sorular sormayı deneyin.")
+
+    son = oturumlar[-1]
+    son_metin = db.get(Story, son.story_id)
+
+    return {
+        "has_data": True,
+        "total": len(oturumlar),
+        "stories_read": len({o.story_id for o in oturumlar}),
+        "avg_wpm": ort_hiz,
+        "wpm_status": durum,
+        "wpm_norm": {"min": alt, "max": ust},
+        "avg_accuracy": ort_anlama,
+        "speed_history": hiz_gecmis,
+        "accuracy_history": anlama_gecmis,
+        "types": turler,
+        "advice": oneri,
+        "last": {
+            "title": son_metin.title if son_metin else "—",
+            "date": str(son.created_at)[:10],
+            "wpm": son.wpm,
+            "accuracy": round(100 * son.correct_count
+                              / max(1, son.total_questions)),
+            "mode": son.mode,
+        },
+        "peek_count": sum(1 for o in oturumlar if o.peeked),
+        "suspicious_count": sum(1 for o in oturumlar if o.suspicious),
     }
 
 

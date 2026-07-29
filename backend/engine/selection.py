@@ -22,12 +22,22 @@ from .level import get_or_create_skill
 from .weights import normalize, kontenjan
 
 
-def kategoriler_for_grade(db: Session, grade: int, plan: str = "family") -> list[Category]:
+def kategoriler_for_grade(db: Session, grade: int, plan: str = "family",
+                          sadece_gorev: bool = False) -> list[Category]:
+    """
+    Sinifa uygun kategoriler.
+
+    sadece_gorev=True ise gunluk goreve girmeyen kategoriler (orn. Okuma)
+    haric tutulur. Okuma tek basina 1-2 dakika surer; gunluk gorev ise
+    toplam ~4 dakika olacak sekilde tasarlanmistir.
+    """
     q = db.query(Category).filter(
         Category.grade_min <= grade, Category.grade_max >= grade
     )
     if plan == "free":
         q = q.filter(Category.is_free.is_(True))
+    if sadece_gorev:
+        q = q.filter(Category.in_daily_quest.is_(True))
     return q.order_by(Category.sort_order).all()
 
 
@@ -51,7 +61,7 @@ def secilecek_kategoriler(db: Session, profile, plan: str = "family") -> list[Ca
     Gunluk gorev icin kategori secimi.
     Her ders kendi kontenjani icinde: yarisi zayif + yarisi rotasyon.
     """
-    hepsi = kategoriler_for_grade(db, profile.grade, plan)
+    hepsi = kategoriler_for_grade(db, profile.grade, plan, sadece_gorev=True)
     if not hepsi:
         return []
 

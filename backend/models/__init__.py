@@ -87,6 +87,9 @@ class Category(Base):
     generator_key = Column(String(50))
     has_upper_grade = Column(Boolean, default=True)
     is_free = Column(Boolean, default=False)            # ucretsiz planda acik mi
+    # Gunluk goreve girer mi? Okuma gibi uzun aktiviteler girmemeli:
+    # gunluk gorev ~4 dakika, tek basina okuma 1-2 dakika surer.
+    in_daily_quest = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
 
 
@@ -239,6 +242,79 @@ class ProfileBadge(Base):
                         primary_key=True)
     badge_id = Column(String(50), ForeignKey("badge.id"), primary_key=True)
     earned_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ============ OKUMA VE ANLAMA ============
+
+class Story(Base):
+    """
+    Okuma metni. Cocuk okur, sure olculur, ardindan anlama sorulari gelir.
+
+    NOT: Ses tanima KULLANILMAZ. Okuma hizi sure olcumuyle hesaplanir
+    (kelime / gecen sure). Boylece izin gerekmez, her cihazda calisir,
+    cocuk sesi hicbir yere gitmez ve olcum kesindir.
+    """
+    __tablename__ = "story"
+
+    id = Column(String(50), primary_key=True)
+    title = Column(String(120), nullable=False)
+    text = Column(Text, nullable=False)
+    word_count = Column(Integer, nullable=False)
+    grade_min = Column(Integer, nullable=False)
+    grade_max = Column(Integer, nullable=False)
+    level = Column(Integer, default=2)          # 1-5 zorluk
+    status = Column(String(20), default="live")
+    sort_order = Column(Integer, default=0)
+
+
+class StoryQuestion(Base):
+    """Hikayeye bagli anlama sorusu."""
+    __tablename__ = "story_question"
+
+    id = Column(String(60), primary_key=True)
+    story_id = Column(String(50), ForeignKey("story.id", ondelete="CASCADE"),
+                      nullable=False, index=True)
+    # bilgi   : metinde acikca yaziyor
+    # cikarim : metinde yazmiyor, cikarilmali
+    # kelime  : kelime dagarcigi
+    type = Column(String(12), nullable=False, default="bilgi")
+    text = Column(Text, nullable=False)
+    options = Column(JSON, nullable=False)
+    answer_index = Column(Integer, nullable=False)
+    explanation = Column(Text)
+    sort_order = Column(Integer, default=0)
+
+
+class ReadingSession(Base):
+    """Bir okuma turunun sonucu. Ebeveyn grafikleri buradan beslenir."""
+    __tablename__ = "reading_session"
+
+    id = Column(String(36), primary_key=True, default=uid)
+    profile_id = Column(String(36), ForeignKey("profile.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    story_id = Column(String(50), ForeignKey("story.id"), nullable=False)
+
+    # "timed"  : sure olculdu -> hiz + anlama
+    # "silent" : cocuk sessiz okudum dedi -> sadece anlama
+    mode = Column(String(10), default="timed")
+
+    duration_ms = Column(Integer)
+    wpm = Column(Integer)                       # kelime/dakika
+    word_count = Column(Integer)
+
+    correct_count = Column(Integer, default=0)
+    total_questions = Column(Integer, default=0)
+    # Soru turlerine gore dogru sayisi: {"bilgi":2,"cikarim":1,"kelime":1}
+    type_breakdown = Column(JSON)
+
+    peeked = Column(Boolean, default=False)     # sorularda metne geri bakti mi
+    reread = Column(Boolean, default=False)     # tekrar okuma turu mu
+    suspicious = Column(Boolean, default=False) # imkansiz hizli -> okumadan gecmis
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+Index("idx_reading_profile", ReadingSession.profile_id, ReadingSession.created_at)
 
 
 # ============ ADMIN ============
