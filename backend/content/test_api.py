@@ -257,6 +257,20 @@ def main():
         check("okumadan gecme tespit edildi",
               rc3.status_code == 200 and rc3.json().get("suspicious") is True)
 
+    # Dogru cevap dagilimi (regresyon)
+    # Bug: hikaye sorularinda siklar karistirilmiyordu, tum dogru
+    # cevaplar A sikkindaydi. Cocuk hep A'ya basarak %100 aliyordu.
+    from models import SessionLocal as _SL, StoryQuestion as _SQ
+    from collections import Counter as _C
+    _db = _SL()
+    _dag = _C(x.answer_index for x in _db.query(_SQ).all())
+    _tp = sum(_dag.values())
+    _db.close()
+    if _tp > 20:
+        _en = max(_dag.values())
+        check(f"okuma cevaplari dengeli (en cok %{100*_en//_tp})",
+              _en <= _tp * 0.45)
+
     # Okuma gunluk goreve GIRMEMELI
     rq2 = c.get(f"/api/quest/today?profile_id={pid}", headers=H)
     if rq2.status_code == 200:

@@ -124,8 +124,34 @@ def seed_house(db) -> int:
     return n
 
 
+def _metni_duzenle(ham: str) -> str:
+    """
+    Kaynak koddaki satir kirilmalarini temizler.
+
+    Metinler .py dosyasinda okunabilirlik icin satirlara bolunmustur.
+    Ama bu satir sonlari EKRANDA da kirilma yaratiyordu; cumleler
+    ortadan bolunmus gorunuyordu.
+
+    Kural:
+      TEK satir sonu   = ayni paragrafin devami -> bosluga cevrilir
+      BOS SATIR (\n\n) = paragraf ayrimi       -> korunur
+    """
+    paragraflar = []
+    for p in ham.strip().split("\n\n"):
+        satirlar = [x.strip() for x in p.strip().split("\n") if x.strip()]
+        if satirlar:
+            paragraflar.append(" ".join(satirlar))
+    return "\n\n".join(paragraflar)
+
+
 def seed_stories(db) -> tuple[int, int]:
-    """Okuma metinlerini ve anlama sorularini yukler. Idempotent."""
+    """
+    Okuma metinlerini ve anlama sorularini yukler. Idempotent.
+
+    SIK KARISTIRMA: Kaynak dosyada dogru cevap her zaman ilk siktadir
+    (yazarken okunakli olsun diye). Karistirilmazsa cocuk hep A'ya
+    basarak %100 alir. Bu yuzden her sik listesi karistirilir.
+    """
     from models import Story, StoryQuestion
 
     eklenen = guncellenen = 0
@@ -133,7 +159,7 @@ def seed_stories(db) -> tuple[int, int]:
     for liste in (METINLER_1, METINLER_2, METINLER_3, METINLER_4):
         for (sid, baslik, metin, gmin, gmax, seviye, sorular) in liste:
             sira += 1
-            temiz = metin.strip()
+            temiz = _metni_duzenle(metin)
             kelime = len(temiz.split())
 
             st = db.get(Story, sid)
@@ -156,9 +182,13 @@ def seed_stories(db) -> tuple[int, int]:
             db.query(StoryQuestion).filter(
                 StoryQuestion.story_id == sid).delete(synchronize_session=False)
             for i, (tur, soru, siklar, ai, expl) in enumerate(sorular):
+                dogru = siklar[ai]
+                karisik = list(siklar)
+                random.shuffle(karisik)
                 db.add(StoryQuestion(
                     id=f"{sid}_q{i+1}", story_id=sid, type=tur,
-                    text=soru, options=list(siklar), answer_index=ai,
+                    text=soru, options=karisik,
+                    answer_index=karisik.index(dogru),
                     explanation=expl, sort_order=i,
                 ))
     db.commit()
@@ -277,6 +307,19 @@ def dogrula(db) -> list[str]:
                 f"({beklenen - gercek} soru eksik!)"
             )
 
+    # 6b. Dogru cevap dagilimi dengeli mi?
+    #     Tum dogru cevaplar ayni sikta olursa cocuk ezberden gecer.
+    from collections import Counter
+    for tablo, ad in ((Question, "soru bankasi"),):
+        dag = Counter(q.answer_index for q in db.query(tablo).all())
+        toplam = sum(dag.values())
+        if toplam > 20:
+            en_cok = max(dag.values())
+            if en_cok > toplam * 0.45:
+                hatalar.append(
+                    f"{ad}: dogru cevaplarin %{100*en_cok//toplam}'i ayni sikta "
+                    f"- siklar karistirilmali")
+
     # 6. Okuma metinleri saglikli mi?
     from models import Story, StoryQuestion
     for st in db.query(Story).filter(Story.status == "live").all():
@@ -287,6 +330,16 @@ def dogrula(db) -> list[str]:
         if st.word_count < 15:
             hatalar.append(f"'{st.title}' cok kisa ({st.word_count} kelime) "
                            f"- okuma hizi olculemez")
+
+    # Hikaye sorularinda dogru cevap dagilimi
+    sq_dag = Counter(q.answer_index for q in db.query(StoryQuestion).all())
+    sq_toplam = sum(sq_dag.values())
+    if sq_toplam > 20:
+        en_cok = max(sq_dag.values())
+        if en_cok > sq_toplam * 0.45:
+            hatalar.append(
+                f"okuma sorulari: dogru cevaplarin %{100*en_cok//sq_toplam}'i "
+                f"ayni sikta - siklar karistirilmali")
     for g in (1, 2, 3, 4):
         n = db.query(Story).filter(Story.grade_min <= g, Story.grade_max >= g,
                                    Story.status == "live").count()
