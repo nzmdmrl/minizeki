@@ -34,6 +34,25 @@ app.include_router(house.router)
 app.include_router(admin.router)
 
 
+# Reverse proxy'ler (Traefik, nginx) /api onekini keserek isteyi iletebilir.
+# Coolify varsayilan olarak boyle yapar:
+#     tarayici /api/health  ->  Traefik keser  ->  backend'e /health gelir
+# Ama tum route'lar /api ile tanimli oldugu icin 404 olusur.
+#
+# Bu middleware oneki geri ekler. Iki ortamda da calisir:
+#   - Proxy arkasinda: /health gelir -> /api/health'e cevrilir
+#   - Dogrudan erisimde: /api/health gelir -> zaten dogru, dokunulmaz
+MUAF_YOLLAR = {"/", "/docs", "/redoc", "/openapi.json", "/favicon.ico"}
+
+
+@app.middleware("http")
+async def api_oneki_uyumu(request: Request, call_next):
+    yol = request.scope.get("path", "")
+    if yol not in MUAF_YOLLAR and not yol.startswith("/api"):
+        request.scope["path"] = "/api" + yol
+    return await call_next(request)
+
+
 @app.on_event("startup")
 def startup():
     init_db()

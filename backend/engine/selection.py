@@ -69,14 +69,19 @@ def secilecek_kategoriler(db: Session, profile, plan: str = "family") -> list[Ca
             continue
         adet = min(adet, len(ders_kat))
 
-        # Skill bilgisi
+        # Skill bilgisi.
+        # DIKKAT: ProfileSkill kaydi henuz olusmamis olabilir (kalibrasyon
+        # atlanmis veya yeni eklenen bir kategori). Her iki fonksiyon da
+        # None'a karsi korunmali — aksi halde gunluk gorev uretimi coker.
         def skill_level(c):
             s = db.get(ProfileSkill, (profile.id, c.id))
             return s.level if s else 2
 
         def son_gorulme(c):
             s = db.get(ProfileSkill, (profile.id, c.id))
-            return (s.last_seen_at if s else None) or datetime(2000, 1, 1)
+            if s is None or s.last_seen_at is None:
+                return datetime(2000, 1, 1)      # hic gorulmemis -> once gelsin
+            return s.last_seen_at
 
         # Yarisi zayif (level dusuk), yarisi rotasyon (uzun suredir gorulmemis)
         zayif_adet = adet // 2 + adet % 2

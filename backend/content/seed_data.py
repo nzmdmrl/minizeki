@@ -19,7 +19,7 @@ CATEGORIES = [
     ("ritmik",           "Ritmik Sayma",       "matematik", "🎵", 1, 4, True,  "ritmik",           True,  False, 15),
     ("saat",             "Saat Okuma",         "matematik", "🕐", 2, 4, True,  "saat",             True,  True,  16),
     ("para",             "Para Hesabı",        "matematik", "💰", 2, 4, True,  "para",             True,  False, 17),
-    ("oruntu",           "Örüntü",             "matematik", "🔷", 1, 4, True,  "oruntu",           True,  False, 18),
+    ("oruntu",           "Örüntü",             "matematik", "🔷", 1, 4, True,  "oruntu",           True,  True,  18),
     ("geometri",         "Geometrik Şekiller", "matematik", "📐", 1, 4, False, None,               True,  False, 19),
 
     # ---------------- TURKCE ----------------
@@ -48,7 +48,7 @@ CATEGORIES = [
     # ================ 3. SINIFTAN ITIBAREN ================
     # MUFREDAT NOTU: Bolme ve kesirler 3. sinifta baslar (2. sinifta YOKTUR).
 
-    ("bolme",            "Bölme",              "matematik", "➗", 3, 4, True,  "bolme", True, False, 13.5),
+    ("bolme",            "Bölme",              "matematik", "➗", 3, 4, True,  "bolme", True, True,  13.5),
     ("kesir",            "Kesirler",           "matematik", "🍕", 3, 4, True,  "kesir", True, False, 17.5),
 
     # ---------------- FEN BILIMLERI (3. siniftan) ----------------
@@ -58,7 +58,7 @@ CATEGORIES = [
     ("duyu_organlari",   "Duyu Organları",     "fen", "👂", 3, 4, False, None, True,  False, 51),
     ("kuvvet_hareket",   "Hareket ve Kuvvet",  "fen", "🏃", 3, 4, False, None, True,  False, 52),
     ("madde",            "Madde ve Özellikleri", "fen", "🧊", 3, 4, False, None, True, False, 53),
-    ("canlilar",         "Canlılar ve Yaşam",  "fen", "🐛", 3, 4, False, None, True,  False, 54),
+    ("canlilar",         "Canlılar ve Yaşam",  "fen", "🐛", 3, 4, False, None, True,  True,  54),
 
     # ---------------- 4. SINIF FEN EK UNITELERI ----------------
     ("isik_ses",         "Işık ve Ses",        "fen", "💡", 4, 4, False, None, False, False, 55),
@@ -69,7 +69,7 @@ CATEGORIES = [
     # MUFREDAT NOTU: Sosyal Bilgiler 4. sinifta baslar.
     # Hayat Bilgisi 4. sinifta biter, yerini Fen + Sosyal alir.
     ("kimlik_haklar",    "Kimlik ve Haklarımız", "sosyal", "🪪", 4, 4, False, None, False, False, 60),
-    ("tarihimiz",        "Atatürk ve Tarihimiz", "sosyal", "🏛️", 4, 4, False, None, False, False, 61),
+    ("tarihimiz",        "Atatürk ve Tarihimiz", "sosyal", "🏛️", 4, 4, False, None, False, True,  61),
     ("cografya",         "Türkiye Coğrafyası",   "sosyal", "🗺️", 4, 4, False, None, False, False, 62),
     ("buluslar",         "Buluşlar ve Teknoloji", "sosyal", "💡", 4, 4, False, None, False, False, 63),
     ("ekonomi",          "Ekonomi ve Meslekler",  "sosyal", "🏭", 4, 4, False, None, False, False, 64),
