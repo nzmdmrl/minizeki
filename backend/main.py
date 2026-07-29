@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -106,6 +106,72 @@ def health():
             "categories": db.query(Category).count(),
             "questions": db.query(Question).count(),
         }
+    finally:
+        db.close()
+
+
+# Tanitim sayfasi bu ucu kullanir. Icerik buyudukce sayfadaki rakamlar
+# kendiliginden guncellensin diye var.
+#
+# GUVENLIK: Auth YOK cunku giris yapmamis ziyaretci cagirir.
+# Bu yuzden SADECE icerik istatistigi doner — hicbir cocuk/hesap verisi yok.
+_STATS_CACHE: dict = {"veri": None, "zaman": 0.0}
+_STATS_TTL = 600  # 10 dakika
+
+DERS_ADLARI = {
+    "matematik": "Matematik",
+    "turkce": "Türkçe",
+    "hayat_bilgisi": "Hayat Bilgisi",
+    "fen": "Fen Bilimleri",
+    "sosyal": "Sosyal Bilgiler",
+    "ingilizce": "İngilizce",
+}
+DERS_SIRASI = ["matematik", "turkce", "hayat_bilgisi", "fen", "sosyal", "ingilizce"]
+
+
+@app.get("/api/public/stats")
+def public_stats(response: Response):
+    """Tanitim sayfasi icin icerik ozeti. Cocuk verisi icermez."""
+    import time
+    from models import SessionLocal, Category, Question
+
+    # Bu uc herkese acik: auth yok, cocuk verisi yok, sadece icerik sayilari
+    # (zaten sitede gorunen bilgi). Boylece FRONTEND_ORIGIN yanlis ayarlansa
+    # bile tanitim sayfasi canli rakamlari gosterebilir.
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Cache-Control"] = "public, max-age=600"
+
+    simdi = time.time()
+    if _STATS_CACHE["veri"] and simdi - _STATS_CACHE["zaman"] < _STATS_TTL:
+        return _STATS_CACHE["veri"]
+
+    db = SessionLocal()
+    try:
+        kategoriler = db.query(Category).order_by(Category.sort_order).all()
+        soru_sayisi = db.query(Question).filter(Question.status == "live").count()
+
+        dersler = []
+        for ders in DERS_SIRASI:
+            kats = [c for c in kategoriler if c.subject == ders]
+            if not kats:
+                continue
+            gmin = min(c.grade_min for c in kats)
+            gmax = max(c.grade_max for c in kats)
+            dersler.append({
+                "kod": ders,
+                "ad": DERS_ADLARI.get(ders, ders),
+                "sinif": f"{gmin}–{gmax}" if gmin != gmax else str(gmin),
+                "konular": [c.name for c in kats],
+            })
+
+        veri = {
+            "kategori": len(kategoriler),
+            "soru": soru_sayisi,
+            "prosedurel": sum(1 for c in kategoriler if c.is_procedural),
+            "dersler": dersler,
+        }
+        _STATS_CACHE.update({"veri": veri, "zaman": simdi})
+        return veri
     finally:
         db.close()
 

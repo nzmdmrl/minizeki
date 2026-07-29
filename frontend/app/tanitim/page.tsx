@@ -28,6 +28,18 @@ const GIRIS = '/giris';
 
 // ---------------------------------------------------------------- Veri
 
+// Yedek icerik. Sayfa once bunlarla render olur (bos ekran / kayma olmasin),
+// sonra /api/public/stats gelince guncellenir. API erisilemezse bunlar kalir.
+// Renk ve sira bilgisi API'de yok, burada tanimlidir.
+const DERS_RENK: Record<string, string> = {
+  'Matematik': '#2563eb',
+  'Türkçe': '#059669',
+  'Hayat Bilgisi': '#d97706',
+  'Fen Bilimleri': '#7c3aed',
+  'Sosyal Bilgiler': '#dc2626',
+  'İngilizce': '#0891b2',
+};
+
 const DERSLER = [
   {
     ad: 'Matematik', renk: '#2563eb', sinif: '1–4',
@@ -73,6 +85,46 @@ const HARITA = [
   { ad: 'Doğru Yazılış', ders: 'Türkçe', seviye: 1, oran: 58 },
   { ad: 'Sağlığımız', ders: 'Hayat Bilgisi', seviye: 2, oran: 85 },
 ];
+
+// Yedek rakamlar — API gelince guncellenir
+const YEDEK_SAYI = { kategori: 44, soru: 1422, prosedurel: 16 };
+
+type Ders = { ad: string; renk: string; sinif: string; konular: string[] };
+type Sayi = { kategori: number; soru: number; prosedurel: number };
+
+/**
+ * Icerik istatistigini API'den ceker.
+ * Basarisiz olursa yedek degerler kalir — sayfa hicbir zaman bos gorunmez.
+ */
+function useIcerik(): { dersler: Ders[]; sayi: Sayi } {
+  const [dersler, setDersler] = useState<Ders[]>(DERSLER);
+  const [sayi, setSayi] = useState<Sayi>(YEDEK_SAYI);
+
+  useEffect(() => {
+    const api = process.env.NEXT_PUBLIC_API_URL || '';
+    let iptal = false;
+
+    fetch(`${api}/api/public/stats`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => {
+        if (iptal || !d?.dersler?.length) return;
+        setDersler(
+          d.dersler.map((x: any) => ({
+            ad: x.ad,
+            renk: DERS_RENK[x.ad] || '#64748b',
+            sinif: x.sinif,
+            konular: x.konular,
+          }))
+        );
+        setSayi({ kategori: d.kategori, soru: d.soru, prosedurel: d.prosedurel });
+      })
+      .catch(() => { /* yedek degerler kalir */ });
+
+    return () => { iptal = true; };
+  }, []);
+
+  return { dersler, sayi };
+}
 
 const SSS = [
   {
@@ -370,12 +422,15 @@ function Akis() {
 
 function Mufredat() {
   const [acik, setAcik] = useState<string | null>('Matematik');
+  const { dersler, sayi } = useIcerik();
+  const tr = (n: number) => n.toLocaleString('tr-TR');
+
   return (
     <section className="mufredat" id="konular">
       <div className="wrap">
         <div className="mufredat-ust">
           <div>
-            <h2 className="h2">44 konu, 1.422 soru</h2>
+            <h2 className="h2">{sayi.kategori} konu, {tr(sayi.soru)} soru</h2>
             <p className="alt">
               Konular MEB müfredatına göre açılır. Birinci sınıfta Fen yoktur,
               üçüncü sınıfta başlar. İkinci sınıfta bölme yoktur. Sosyal Bilgiler
@@ -384,14 +439,14 @@ function Mufredat() {
             </p>
           </div>
           <div className="sayilar">
-            <div><b>44</b><span>konu</span></div>
-            <div><b>1.422</b><span>hazır soru</span></div>
-            <div><b>16</b><span>sınırsız üreten konu</span></div>
+            <div><b>{sayi.kategori}</b><span>konu</span></div>
+            <div><b>{tr(sayi.soru)}</b><span>hazır soru</span></div>
+            <div><b>{sayi.prosedurel}</b><span>sınırsız üreten konu</span></div>
           </div>
         </div>
 
         <div className="dersler">
-          {DERSLER.map((d) => {
+          {dersler.map((d) => {
             const ac = acik === d.ad;
             return (
               <div key={d.ad} className={`ders ${ac ? 'ac' : ''}`}
@@ -414,8 +469,8 @@ function Mufredat() {
         </div>
 
         <p className="mini">
-          Çarpım tablosu, saat, para gibi 16 konuda sorular anlık üretilir —
-          havuz tükenmez, aynı soru tekrar gelmez.
+          Çarpım tablosu, saat, para gibi {sayi.prosedurel} konuda sorular anlık
+          üretilir — havuz tükenmez, aynı soru tekrar gelmez.
         </p>
       </div>
     </section>
