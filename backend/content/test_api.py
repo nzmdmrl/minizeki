@@ -211,6 +211,31 @@ def main():
     r = c.get(f"/api/parent/export?profile_id={pid}", headers=PH)
     check("veri export 200", r.status_code == 200)
 
+    # --- Tur ici tekrar (regresyon) ---
+    # Bug: ayni tur icinde ayni soru birden fazla kez gelebiliyordu.
+    # Cocuk 10 soruluk turda 7 kez ayni soruyu goruyordu.
+    print("\n[Tur ici tekrar]")
+    from collections import Counter
+    tekrar_toplam = 0
+    for kat_id in ["es_anlamli", "okulumuz", "geometri", "carpim", "saat"]:
+        rr = c.get(f"/api/play/{kat_id}?profile_id={pid}&count=10", headers=H)
+        if rr.status_code != 200:
+            continue
+        qq = rr.json()["questions"]
+        imza = [(x["text"], tuple(x["options"]), (x.get("svg") or "")[:60])
+                for x in qq]
+        tekrar_toplam += len(imza) - len(set(imza))
+    check(f"serbest oyunda tur ici tekrar yok ({tekrar_toplam})",
+          tekrar_toplam == 0)
+
+    rr = c.get(f"/api/quest/today?profile_id={pid}", headers=H)
+    if rr.status_code == 200:
+        qq = rr.json()["questions"]
+        imza = [(x["text"], tuple(x["options"]), (x.get("svg") or "")[:60])
+                for x in qq]
+        check(f"gunluk gorevde tekrar yok ({len(imza) - len(set(imza))})",
+              len(imza) == len(set(imza)))
+
     # --- Sonuc ---
     print("\n" + "=" * 55)
     print(f"BASARILI: {OK}   BASARISIZ: {FAIL}")

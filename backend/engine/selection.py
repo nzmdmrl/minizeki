@@ -104,7 +104,14 @@ def secilecek_kategoriler(db: Session, profile, plan: str = "family") -> list[Ca
 
 def soru_uret(db: Session, profile, category: Category, adet: int,
               mode: str = "quest") -> list[dict]:
-    """Bir kategoriden `adet` soru uretir/secer."""
+    """
+    Bir kategoriden `adet` soru uretir/secer.
+
+    TUR ICI TEKRAR: Ayni tur icinde ayni soru iki kez GELMEMELI.
+    Yazili sorularda her secim bagimsiz oldugu icin havuzdan ayni kayit
+    tekrar gelebiliyordu; prosedurel uretecler de dar bantlarda ayni
+    kombinasyonu uretebiliyor. Bu yuzden secilenler takip edilir.
+    """
     skill = get_or_create_skill(db, profile.id, category.id)
     son_dog = _son_dogruluk(db, profile.id, category.id)
     toplam = skill.total_correct + skill.total_wrong
@@ -115,13 +122,27 @@ def soru_uret(db: Session, profile, category: Category, adet: int,
         skill.level, skill.advanced_unlocked, skill.advance_ratio or 0.10,
     )
 
-    sorular = []
+    sorular: list[dict] = []
+    kullanilan_id: set[str] = set()      # yazili sorular icin
+    kullanilan_imza: set[tuple] = set()  # prosedurel sorular icin
+
     for _ in range(adet):
         grade = sinif_sec(dist)
         band = band_sec(skill.level, durum)
 
         if category.is_procedural:
-            q = generate(category.generator_key, grade, band)
+            # Ayni soruyu uretirse birkac kez daha dene.
+            # Dar bantlarda (orn. 2. sinif carpim band 1) kombinasyon az
+            # oldugu icin sinirsiz denenmez; 8 deneme sonrasi kabul edilir.
+            q = None
+            for _ in range(8):
+                aday = generate(category.generator_key, grade, band)
+                imza = (aday["text"], tuple(aday["options"]))
+                if imza not in kullanilan_imza:
+                    kullanilan_imza.add(imza)
+                    q = aday
+                    break
+                q = aday      # son aday yine de kullanilir
             q.update({
                 "category_id": category.id,
                 "category_name": category.name,
@@ -131,16 +152,29 @@ def soru_uret(db: Session, profile, category: Category, adet: int,
             })
             sorular.append(q)
         else:
-            q = _havuzdan_sec(db, profile, category, grade, band)
+            q = _havuzdan_sec(db, profile, category, grade, band,
+                              haric=kullanilan_id)
             if q:
+                if q.get("question_id"):
+                    kullanilan_id.add(q["question_id"])
                 sorular.append(q)
 
     return sorular
 
 
 def _havuzdan_sec(db: Session, profile, category: Category,
-                  grade: int, band: int) -> dict | None:
-    """Yazili soru havuzundan secim. 45 gun tekrar filtresi."""
+                  grade: int, band: int,
+                  haric: set[str] | None = None) -> dict | None:
+    """
+    Yazili soru havuzundan secim.
+
+    Iki ayri tekrar korumasi vardir:
+      - `gorulen`: son 45 gunde gosterilen sorular (uzun vadeli)
+      - `haric`:   bu tur icinde zaten secilenler (kisa vadeli)
+
+    `haric` olmadan ayni tur icinde ayni soru birden fazla kez gelebiliyordu.
+    """
+    haric = haric or set()
     cutoff = datetime.utcnow() - timedelta(days=cfg.SEEN_QUESTION_COOLDOWN_DAYS)
 
     gorulen = (db.query(SeenQuestion.question_id)
@@ -148,7 +182,8 @@ def _havuzdan_sec(db: Session, profile, category: Category,
                        SeenQuestion.last_seen_at > cutoff)
                .scalar_subquery())
 
-    def sorgu(bands: list[int], grades: list[int], filtrele: bool):
+    def sorgu(bands: list[int], grades: list[int], filtrele: bool,
+              tur_ici: bool = True):
         q = db.query(Question).filter(
             Question.category_id == category.id,
             Question.status == "live",
@@ -158,6 +193,8 @@ def _havuzdan_sec(db: Session, profile, category: Category,
         )
         if filtrele:
             q = q.filter(~Question.id.in_(gorulen))
+        if tur_ici and haric:
+            q = q.filter(~Question.id.in_(haric))
         return q.order_by(func.random()).first()
 
     # 1. Tam eslesme
@@ -168,9 +205,13 @@ def _havuzdan_sec(db: Session, profile, category: Category,
     # 3. Sinif kisitini gevset
     if not row:
         row = sorgu([1, 2, 3, 4, 5], [profile.grade], True)
-    # 4. Havuz yetersiz -> tekrar filtresini kaldir
+    # 4. Havuz yetersiz -> 45 gun filtresini kaldir (tur ici koruma DURUR)
     if not row:
         row = sorgu([1, 2, 3, 4, 5], [profile.grade], False)
+    # 5. Kategoride gercekten cok az soru var -> tur ici korumayi da kaldir.
+    #    Bu son caredir: ayni soru tekrar gelir ama tur bos kalmaz.
+    if not row:
+        row = sorgu([1, 2, 3, 4, 5], [profile.grade], False, tur_ici=False)
     if not row:
         return None
 
