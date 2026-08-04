@@ -24,7 +24,7 @@ import config as cfg
 from models import (
     get_db, Account, Story, StoryQuestion, ReadingSession, ProfileSkill,
 )
-from engine import get_or_create_skill, yildiz_ver
+from engine import get_or_create_skill, yildiz_ver, okuma_rozet_kontrol
 from .security import get_current_account, get_profile_or_404
 
 router = APIRouter(prefix="/api/reading", tags=["reading"])
@@ -243,6 +243,13 @@ def complete(body: ReadingIn, acc: Account = Depends(get_current_account),
             yildiz_ver(db, p, STAR_ANLAMA_IYI, "reading_comprehension")
             oduller.append({"star": STAR_ANLAMA_IYI, "reason": "Çok iyi anladın"})
 
+    db.flush()
+
+    # --- Rozetler ---
+    # Okuma kendi rozet setini kullanir; gunluk gorev rozetleri
+    # (seri, mukemmel gun) okuma turlarinda tetiklenmez.
+    rozetler = okuma_rozet_kontrol(db, p)
+
     db.commit()
 
     # --- Cocuga gosterilecek geri bildirim ---
@@ -276,6 +283,7 @@ def complete(body: ReadingIn, acc: Account = Depends(get_current_account),
         "speed": hiz_bilgi,
         "suspicious": supheli,
         "rewards": oduller,
+        "new_badges": rozetler,
         "star_balance": p.star_balance,
         "offer_reread": oran < 0.6 and not body.reread,
         "breakdown": {k: {"dogru": v[0], "toplam": v[1]}

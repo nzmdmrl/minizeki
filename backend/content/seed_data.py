@@ -34,7 +34,7 @@ CATEGORIES = [
     ("noktalama",        "Noktalama",          "turkce", "❗", 2, 4, False, None,         True,  False, 28),
     # Okuma ve Anlama: normal kategorilerden FARKLI calisir.
     # Metin okunur, sure olculur, sonra 5 anlama sorusu gelir.
-    # Gunluk goreve GIRMEZ (in_daily_quest=False) cunku tek basina 1-2 dakika surer.
+    # Gunluk goreve GIRMEZ cunku tek basina 1-2 dakika surer.
     ("okuma",            "Okuma ve Anlama",    "turkce", "📖", 1, 4, False, None,         True,  True,  29),
 
     # ---------------- HAYAT BILGISI (1-3. sinif) ----------------
@@ -94,6 +94,17 @@ BADGES = [
     ("kasif",              "Kâşif",               "🌍", "Tüm Hayat Bilgisi kategorilerinde Altın"),
     ("odaklanmis",         "Odaklanmış",          "🎯", "Bir odak haftasını tamamladın"),
     ("zeki_dostu",         "Zeki'nin Dostu",      "🦉", "Zeki'nin evini tamamen döşedin"),
+
+    # --- Okuma rozetleri ---
+    # Okuma modulu ayri bir akis oldugu icin kendi rozetleri var.
+    # Gunluk gorev rozetleri okuma yapan cocugu hic odullendirmiyordu.
+    ("ilk_hikaye",         "İlk Hikâye",          "📕", "İlk hikâyeni okudun"),
+    ("hikaye_kurdu",       "Hikâye Kurdu",        "📚", "5 farklı hikâye okudun"),
+    ("kitap_dostu",        "Kitap Dostu",         "📖", "15 farklı hikâye okudun"),
+    ("dikkatli_okur",      "Dikkatli Okur",       "🔍", "Bir hikâyenin tüm sorularını doğru bildin"),
+    ("anlayan_okur",       "Anlayan Okur",        "🧠", "5 hikâyede üst üste %80+ anladın"),
+    ("cikarim_ustasi",     "Çıkarım Ustası",      "💡", "Çıkarım sorularında 20 doğru yaptın"),
+    ("kelime_hazinesi",    "Kelime Hazinesi",     "💎", "Kelime sorularında 20 doğru yaptın"),
 ]
 
 

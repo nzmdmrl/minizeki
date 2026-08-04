@@ -333,6 +333,25 @@ function SonucEkrani({ sonuc, metin, onTekrar, onYeni }: any) {
         </div>
       )}
 
+      {/* Yeni rozetler — okuma kendi rozet setini kullanir */}
+      {sonuc.new_badges?.length > 0 && (
+        <div className="card mb-4 p-5">
+          <p className="mb-3 text-center font-black text-slate-700">Yeni rozet!</p>
+          <div className="grid gap-2">
+            {sonuc.new_badges.map((b: any) => (
+              <div key={b.id} className="flex items-center gap-3 rounded-2xl
+                                          bg-sun-400/10 px-4 py-3 animate-pop">
+                <span className="text-3xl">{b.icon}</span>
+                <div>
+                  <p className="font-black text-slate-800">{b.name}</p>
+                  <p className="text-xs font-bold text-slate-500">{b.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {sonuc.offer_reread && (
         <div className="card mb-4 p-5">
           <div className="flex items-start gap-3">

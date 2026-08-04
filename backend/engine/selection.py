@@ -141,9 +141,8 @@ def soru_uret(db: Session, profile, category: Category, adet: int,
         band = band_sec(skill.level, durum)
 
         if category.is_procedural:
-            # Ayni soruyu uretirse birkac kez daha dene.
-            # Dar bantlarda (orn. 2. sinif carpim band 1) kombinasyon az
-            # oldugu icin sinirsiz denenmez; 8 deneme sonrasi kabul edilir.
+            # Ayni soruyu uretirse birkac kez daha dene. Dar bantlarda
+            # kombinasyon az oldugu icin 8 deneme sonrasi kabul edilir.
             q = None
             for _ in range(8):
                 aday = generate(category.generator_key, grade, band)
@@ -152,7 +151,7 @@ def soru_uret(db: Session, profile, category: Category, adet: int,
                     kullanilan_imza.add(imza)
                     q = aday
                     break
-                q = aday      # son aday yine de kullanilir
+                q = aday
             q.update({
                 "category_id": category.id,
                 "category_name": category.name,
@@ -178,11 +177,9 @@ def _havuzdan_sec(db: Session, profile, category: Category,
     """
     Yazili soru havuzundan secim.
 
-    Iki ayri tekrar korumasi vardir:
+    Iki ayri tekrar korumasi:
       - `gorulen`: son 45 gunde gosterilen sorular (uzun vadeli)
       - `haric`:   bu tur icinde zaten secilenler (kisa vadeli)
-
-    `haric` olmadan ayni tur icinde ayni soru birden fazla kez gelebiliyordu.
     """
     haric = haric or set()
     cutoff = datetime.utcnow() - timedelta(days=cfg.SEEN_QUESTION_COOLDOWN_DAYS)
@@ -218,8 +215,8 @@ def _havuzdan_sec(db: Session, profile, category: Category,
     # 4. Havuz yetersiz -> 45 gun filtresini kaldir (tur ici koruma DURUR)
     if not row:
         row = sorgu([1, 2, 3, 4, 5], [profile.grade], False)
-    # 5. Kategoride gercekten cok az soru var -> tur ici korumayi da kaldir.
-    #    Bu son caredir: ayni soru tekrar gelir ama tur bos kalmaz.
+    # 5. Kategoride gercekten cok az soru var -> son care olarak
+    #    tur ici korumayi da kaldir; tur bos kalmasin.
     if not row:
         row = sorgu([1, 2, 3, 4, 5], [profile.grade], False, tur_ici=False)
     if not row:

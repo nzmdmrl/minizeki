@@ -17,7 +17,7 @@ type Props = {
 };
 
 /** Dogru cevapta otomatik gecise kadar beklenen sure (ms). */
-const AUTO_NEXT_MS = 3000;
+const AUTO_NEXT_MS = 1500;
 
 /**
  * TASARIM KURALLARI (dokumandan):
@@ -49,7 +49,6 @@ export default function QuestionPlayer({
   const [left, setLeft] = useState(seconds);
   const [busy, setBusy] = useState(false);
   const [autoPct, setAutoPct] = useState(0);       // 0-100 geri sayim dolumu
-  const [askExit, setAskExit] = useState(false);   // cikis onay modali
 
   const startRef = useRef<number>(Date.now());
   const q = questions[i];
@@ -123,19 +122,10 @@ export default function QuestionPlayer({
     if (!onExit) return;
     // Ilk soruda henuz bir sey yapmamis -> onay sorma, hemen cikar
     if (exitConfirm && (i > 0 || result)) {
-      setAskExit(true);
-      return;
+      if (!confirm(exitConfirm)) return;
     }
     onExit();
   }, [onExit, exitConfirm, i, result]);
-
-  // ESC ile modali kapat
-  useEffect(() => {
-    if (!askExit) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAskExit(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [askExit]);
 
   if (!q) return null;
 
@@ -261,34 +251,6 @@ export default function QuestionPlayer({
               {last ? 'Bitir' : 'Devam et'} →
             </span>
           </button>
-        </div>
-      )}
-
-      {/* Cikis onayi: tarayici confirm() yerine kendi modalimiz */}
-      {askExit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-5"
-             onClick={() => setAskExit(false)}>
-          <div className="card w-full max-w-sm animate-pop p-7"
-               onClick={(e) => e.stopPropagation()}>
-            {(exitConfirm ?? '').split('\n\n').map((satir, idx) => (
-              <p key={idx}
-                 className={idx === 0
-                   ? 'text-lg font-bold leading-relaxed text-slate-600'
-                   : 'mt-3 text-xl font-black text-slate-800'}>
-                {satir}
-              </p>
-            ))}
-            <div className="mt-7 flex gap-3">
-              <button className="btn-ghost flex-1 !px-4"
-                      onClick={() => setAskExit(false)}>
-                Devam et
-              </button>
-              <button className="btn-primary flex-1 !px-4"
-                      onClick={() => { setAskExit(false); onExit?.(); }}>
-                Çık
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

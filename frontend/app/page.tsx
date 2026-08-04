@@ -12,7 +12,7 @@ export default function HomePage() {
   const [active, setActive] = useState<Profile | null>(null);
 
   useEffect(() => {
-    if (!token.get()) { router.replace('/tanitim'); return; }
+    if (!token.get()) { router.replace('/giris'); return; }
     load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -211,10 +211,14 @@ def main():
     r = c.get(f"/api/parent/export?profile_id={pid}", headers=PH)
     check("veri export 200", r.status_code == 200)
 
-    # --- Okuma ve Anlama ---
+    # ================= OKUMA VE ANLAMA =================
     print("\n[Okuma ve Anlama]")
+    from models import SessionLocal as _SL, StoryQuestion as _SQ
+    from collections import Counter as _C
+
     rr = c.get(f"/api/reading/story?profile_id={pid}", headers=H)
     check("metin alma 200", rr.status_code == 200, rr.text[:80])
+
     if rr.status_code == 200:
         st = rr.json()
         check(f"metin var ({st['word_count']} kelime)", st["word_count"] > 15)
@@ -225,24 +229,39 @@ def main():
         check("sorular 200", rq.status_code == 200)
         oq = rq.json()["questions"]
         check(f"5 soru geldi ({len(oq)})", len(oq) == 5)
-        check("dogru cevap SIZMIYOR",
-              all("answer_index" not in x for x in oq))
-        turler = {x["type"] for x in oq}
-        check(f"soru turleri cesitli ({len(turler)})", len(turler) >= 2)
+        check("dogru cevap SIZMIYOR", all("answer_index" not in x for x in oq))
+        check(f"soru turleri cesitli ({len({x['type'] for x in oq})})",
+              len({x["type"] for x in oq}) >= 2)
 
-        # Sureli okuma
+        # Metinde satir kirilmasi olmamali (kaynak dosyadaki bicimlendirme
+        # ekrana sizmamali) - tek \n sadece paragraf ayrimi icin olabilir
+        _tekli = [x for x in st["text"].split("\n\n")
+                  if "\n" in x]
+        check("metinde cumle ortasi satir kirilmasi yok", len(_tekli) == 0)
+
+        # Tam dogru -> rozet + odul
+        _db = _SL()
+        _dogru = [q.answer_index for q in _db.query(_SQ)
+                  .filter(_SQ.story_id == st["id"])
+                  .order_by(_SQ.sort_order).all()]
+        _db.close()
         rc = c.post("/api/reading/complete", headers=H, json={
             "profile_id": pid, "story_id": st["id"], "mode": "timed",
-            "duration_ms": 45000, "answers": [0, 0, 0, 0, 0]})
+            "duration_ms": 45000, "answers": _dogru})
         check("okuma tamamlama 200", rc.status_code == 200, rc.text[:80])
         if rc.status_code == 200:
             dd = rc.json()
-            check("anlama sonucu var", "accuracy" in dd)
+            check(f"tam dogru ({dd['correct']}/{dd['total']})",
+                  dd["correct"] == dd["total"])
+            check("hiz hesaplandi", dd.get("speed") is not None)
             check("odul verildi", len(dd.get("rewards", [])) > 0)
+            # Bug: reading.py rozet kontrolunu hic cagirmiyordu
+            check("new_badges alani var", "new_badges" in dd)
+            check(f"okuma rozeti verildi ({len(dd.get('new_badges', []))})",
+                  len(dd.get("new_badges", [])) > 0)
 
         # Sessiz okuma: hiz olculmemeli
-        rr2 = c.get(f"/api/reading/story?profile_id={pid}", headers=H)
-        st2 = rr2.json()
+        st2 = c.get(f"/api/reading/story?profile_id={pid}", headers=H).json()
         rc2 = c.post("/api/reading/complete", headers=H, json={
             "profile_id": pid, "story_id": st2["id"], "mode": "silent",
             "answers": [0, 0, 0, 0, 0]})
@@ -250,32 +269,28 @@ def main():
               rc2.status_code == 200 and rc2.json().get("speed") is None)
 
         # Imkansiz hizli -> supheli
-        rr3 = c.get(f"/api/reading/story?profile_id={pid}", headers=H)
+        st3 = c.get(f"/api/reading/story?profile_id={pid}", headers=H).json()
         rc3 = c.post("/api/reading/complete", headers=H, json={
-            "profile_id": pid, "story_id": rr3.json()["id"], "mode": "timed",
+            "profile_id": pid, "story_id": st3["id"], "mode": "timed",
             "duration_ms": 2000, "answers": [0, 0, 0, 0, 0]})
         check("okumadan gecme tespit edildi",
               rc3.status_code == 200 and rc3.json().get("suspicious") is True)
 
-    # Dogru cevap dagilimi (regresyon)
-    # Bug: hikaye sorularinda siklar karistirilmiyordu, tum dogru
-    # cevaplar A sikkindaydi. Cocuk hep A'ya basarak %100 aliyordu.
-    from models import SessionLocal as _SL, StoryQuestion as _SQ
-    from collections import Counter as _C
+    # Bug: tum dogru cevaplar A sikkindaydi
     _db = _SL()
     _dag = _C(x.answer_index for x in _db.query(_SQ).all())
-    _tp = sum(_dag.values())
     _db.close()
+    _tp = sum(_dag.values())
     if _tp > 20:
         _en = max(_dag.values())
-        check(f"okuma cevaplari dengeli (en cok %{100*_en//_tp})",
+        check(f"okuma cevaplari dengeli (en cok %{100 * _en // _tp})",
               _en <= _tp * 0.45)
 
-    # Okuma gunluk goreve GIRMEMELI
+    # Okuma gunluk goreve GIRMEMELI (tek basina 1-2 dakika surer)
     rq2 = c.get(f"/api/quest/today?profile_id={pid}", headers=H)
     if rq2.status_code == 200:
-        kats = {x["category_id"] for x in rq2.json()["questions"]}
-        check("okuma gunluk goreve girmiyor", "okuma" not in kats)
+        check("okuma gunluk goreve girmiyor",
+              "okuma" not in {x["category_id"] for x in rq2.json()["questions"]})
 
     # --- Tur ici tekrar (regresyon) ---
     # Bug: ayni tur icinde ayni soru birden fazla kez gelebiliyordu.

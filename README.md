@@ -2,7 +2,7 @@
 
 İlkokul (1–4. sınıf) için MEB müfredatına uygun eğitim oyunu platformu.
 
-**Bu sürümde:** 1. ve 2. sınıf tam çalışır durumda. 3–4. sınıf altyapısı hazır, soru bankası eklendikçe açılır.
+**Bu sürümde:** 1–4. sınıf tam çalışır durumda. 44 kategori, 1.422 yazılı soru, 16 prosedürel üreteç.
 
 ---
 
@@ -88,8 +88,17 @@ python main.py
 
 | Kaynak | Kategori | Soru |
 |---|---|---|
-| **Prosedürel** (algoritma üretir) | 14 | **Sınırsız** |
-| **Yazılı** (bankada) | 13 | **348** |
+| **Prosedürel** (algoritma üretir) | 16 | **Sınırsız** |
+| **Yazılı** (bankada) | 28 | **1.422** |
+
+### Sınıf bazlı kapsam
+
+| Sınıf | Kategori | Yazılı soru | Dersler |
+|---|---|---|---|
+| 1 | 20 | 358 | Matematik, Türkçe, Hayat Bilgisi |
+| 2 | 27 | 781 | + İngilizce |
+| 3 | 32 | 1.098 | + **Fen Bilimleri**, Bölme, Kesirler |
+| 4 | 34 | 968 | + **Sosyal Bilgiler** (Hayat Bilgisi biter) |
 
 Prosedürel kategoriler günlük görevin ~%50'sini karşılar ve **hiç tekrarlanmaz**.
 
@@ -97,15 +106,21 @@ Prosedürel kategoriler günlük görevin ~%50'sini karşılar ve **hiç tekrarl
 
 | Kategori | Soru |
 |---|---|
-| Eş Anlamlı | 38 |
-| Zıt Anlamlı | 36 |
-| Doğru Yazılış | 32 |
-| Noktalama | 31 |
-| İngilizce Kelimeler | 30 |
-| İngilizce İfadeler | 30 |
-| Doğa ve Çevre | 26 |
-| Geometrik Şekiller | 25 |
-| Okulumuz / Ailemiz / Sağlığımız / Güvenliğimiz / Ülkemiz | 20'şer |
+| Eş Anlamlı | 75 |
+| Zıt Anlamlı | 72 |
+| Doğru Yazılış | 69 |
+| İngilizce Kelimeler | 67 |
+| Doğa ve Çevre | 63 |
+| Geometrik Şekiller | 63 |
+| Noktalama | 61 |
+| Okulumuz / Sağlığımız / Güvenliğimiz / Ülkemiz | 57'şer |
+| Ailemiz ve Evimiz | 56 |
+| İngilizce İfadeler | 55 |
+| **Toplam** | **809** |
+
+Soru dosyaları: `content/sorular_*.py` (temel) + `content/sorular_*_ek.py` (genişletme).
+Her kategori 55+ soru içerir; prosedürel kategoriler günlük görevin ~%50'sini
+karşıladığı için gerçek havuz ömrü **4–5 ay**dır.
 
 ### Soru eklemek
 
@@ -226,6 +241,12 @@ Bu kurallar ürünün temelidir; değiştirmeden önce iki kez düşünün.
 | **Isınma kuralı** — turun ilk sorusu her zaman kolay | `engine/selection.py` |
 | **Etiket yok** — çocuk "3. sınıf sorusu" görmez, "✨ Yeni sorular açıldı!" görür | `api/play.py` |
 | **Süre tehdit değil** — kırmızı ekran/tik sesi/titreşim yok | `components/QuestionPlayer.tsx` |
+| **Doğru cevapta 1.5 sn'de otomatik geçiş** — görünür geri sayımla, dokununca hemen | `components/QuestionPlayer.tsx` |
+| **Yanlışta otomatik geçiş yok** — çocuk doğrusunu okumalı | `components/QuestionPlayer.tsx` |
+| **Ödül varsa otomatik geçiş yok** — madalya/yeni sorular müjdesi görülmeli | `components/QuestionPlayer.tsx` |
+| **Çıkış sessiz** — sol üstte küçük ok; büyük "Çıkış" butonu çıkmayı davet eder | `components/QuestionPlayer.tsx` |
+| **Serbest oyunda onaysız çıkış** — çocuk yanlış kategoriye girmiş olabilir | `app/oyna/[cat]` |
+| **Kalibrasyonda çıkış yok** — 8 soruluk ilk deneyim yarım kalmamalı | `app/profil/[id]/tanisalim` |
 | **Kalibrasyonda puan yok** — sadece "Harika! Hazırsın" | `profil/[id]/tanisalim` |
 | **Cevap sızmaz** — doğru cevap istemciye gitmez, imzalı token'da | `api/security.py` |
 | **Ses yok** — platform tamamen sessiz | — |

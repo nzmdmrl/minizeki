@@ -9,6 +9,7 @@ from .selection import (
 )
 from .rewards import (
     yildiz_ver, seri_guncelle, gorev_odulu, rozet_kontrol, kalkan_yenile,
+    okuma_rozet_kontrol,
 )
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "gunluk_gorev_uret", "soru_uret", "secilecek_kategoriler",
     "kategoriler_for_grade",
     "yildiz_ver", "seri_guncelle", "gorev_odulu", "rozet_kontrol", "kalkan_yenile",
+    "okuma_rozet_kontrol",
 ]

@@ -154,3 +154,70 @@ def rozet_kontrol(db: Session, profile: Profile, ctx: dict) -> list[dict]:
             ver(bid)
 
     return yeni
+
+
+def okuma_rozet_kontrol(db: Session, profile: Profile) -> list[dict]:
+    """
+    Okuma modulune ozel rozetler.
+
+    NEDEN AYRI: Gunluk gorev rozetleri (seri, mukemmel gun, ders ustaligi)
+    okuma yapan cocugu hic odullendirmiyordu. Okuma ayri bir akis
+    oldugu icin kendi rozet setine ihtiyaci var.
+    """
+    from models import ReadingSession, Badge as _B
+
+    yeni = []
+    mevcut = {r[0] for r in db.query(ProfileBadge.badge_id)
+              .filter(ProfileBadge.profile_id == profile.id).all()}
+
+    def ver(bid: str):
+        if bid in mevcut:
+            return
+        b = db.get(_B, bid)
+        if not b:
+            return
+        db.add(ProfileBadge(profile_id=profile.id, badge_id=bid))
+        yildiz_ver(db, profile, 5, f"badge:{bid}")
+        yeni.append({"id": b.id, "name": b.name, "icon": b.icon,
+                     "description": b.description})
+
+    oturumlar = (db.query(ReadingSession)
+                 .filter(ReadingSession.profile_id == profile.id)
+                 .order_by(ReadingSession.created_at).all())
+    if not oturumlar:
+        return yeni
+
+    # Kac FARKLI hikaye okundu (ayni hikayeyi tekrar okumak sayilmaz)
+    farkli = len({o.story_id for o in oturumlar})
+    if farkli >= 1:
+        ver("ilk_hikaye")
+    if farkli >= 5:
+        ver("hikaye_kurdu")
+    if farkli >= 15:
+        ver("kitap_dostu")
+
+    # Tum sorulari dogru bildigi bir tur
+    if any(o.correct_count == o.total_questions and o.total_questions > 0
+           for o in oturumlar):
+        ver("dikkatli_okur")
+
+    # Son 5 turda ust uste %80+
+    if len(oturumlar) >= 5:
+        son5 = oturumlar[-5:]
+        if all(o.total_questions and o.correct_count / o.total_questions >= 0.8
+               for o in son5):
+            ver("anlayan_okur")
+
+    # Soru turune gore toplam dogru
+    cikarim = kelime = 0
+    for o in oturumlar:
+        if not o.type_breakdown:
+            continue
+        cikarim += o.type_breakdown.get("cikarim", {}).get("dogru", 0)
+        kelime += o.type_breakdown.get("kelime", {}).get("dogru", 0)
+    if cikarim >= 20:
+        ver("cikarim_ustasi")
+    if kelime >= 20:
+        ver("kelime_hazinesi")
+
+    return yeni

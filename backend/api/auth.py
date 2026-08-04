@@ -19,6 +19,7 @@ PIN_LOCK_MINUTES = 15
 class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=100)
+    pin: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
 
 
 class LoginIn(BaseModel):
@@ -44,7 +45,7 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
     acc = Account(
         email=body.email.lower(),
         password_hash=hash_password(body.password),
-        pin_hash=hash_password("0000"),
+        pin_hash=hash_password(body.pin),
         plan="free",
     )
     db.add(acc)
