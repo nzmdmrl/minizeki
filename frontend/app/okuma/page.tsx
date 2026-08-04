@@ -218,17 +218,45 @@ function SoruEkrani({ metin, sorular, onBitir }: any) {
   const [i, setI] = useState(0);
   const [cevaplar, setCevaplar] = useState<number[]>([]);
   const [secili, setSecili] = useState<number | null>(null);
+  const [dogruIdx, setDogruIdx] = useState<number | null>(null);
   const [bakti, setBakti] = useState(false);
   const [metinAcik, setMetinAcik] = useState(false);
+  const [bekle, setBekle] = useState(false);
 
   const q = sorular[i];
   const son = i === sorular.length - 1;
+  const cevaplandi = dogruIdx !== null;
+
+  // Sikka basinca ANINDA geri bildirim.
+  // Onceki surumde once secip sonra "Sonraki soru"ya basmak gerekiyordu;
+  // hem normal oyundan farkliydi hem de secim gorunmuyordu.
+  const sec = async (idx: number) => {
+    if (cevaplandi || bekle) return;
+    setBekle(true);
+    setSecili(idx);
+    try {
+      const t = localStorage.getItem('mz_token');
+      const r = await fetch(`${API}/api/answer`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: q.token, selected: idx, duration_ms: 0 }),
+      });
+      const d = await r.json();
+      setDogruIdx(d.answer_index);
+    } catch {
+      // Ag hatasi: cocugu bekletme, secimi dogru kabul edip devam et
+      setDogruIdx(idx);
+    } finally {
+      setBekle(false);
+    }
+  };
 
   const ilerle = () => {
-    if (secili === null) return;
-    const yeni = [...cevaplar, secili];
+    if (!cevaplandi) return;
+    const yeni = [...cevaplar, secili as number];
     setCevaplar(yeni);
     setSecili(null);
+    setDogruIdx(null);
     setMetinAcik(false);
     if (son) onBitir(yeni, bakti);
     else setI(i + 1);
@@ -245,7 +273,7 @@ function SoruEkrani({ metin, sorular, onBitir }: any) {
             {metinAcik ? 'Hikâyeyi kapat' : 'Hikâyeye tekrar bak'}
           </button>
         </div>
-        <ProgressBar value={(i / sorular.length) * 100} />
+        <ProgressBar value={((i + (cevaplandi ? 1 : 0)) / sorular.length) * 100} />
       </div>
 
       {metinAcik && (
@@ -260,18 +288,56 @@ function SoruEkrani({ metin, sorular, onBitir }: any) {
       </div>
 
       <div className="grid gap-3">
-        {q.options.map((o: string, idx: number) => (
-          <button key={idx} onClick={() => setSecili(idx)}
-                  className={`opt ${secili === idx ? 'border-brand-400 bg-brand-50' : ''}`}>
-            {o}
-          </button>
-        ))}
+        {q.options.map((o: string, idx: number) => {
+          let k = 'opt';
+          if (cevaplandi) {
+            if (idx === dogruIdx) k += ' opt-correct';
+            else if (idx === secili) k += ' opt-wrong';
+            else k += ' opt-muted';
+          } else if (secili === idx) {
+            k += ' opt-secili';
+          }
+          return (
+            <button key={idx} onClick={() => sec(idx)}
+                    disabled={cevaplandi || bekle} className={k}>
+              {o}
+            </button>
+          );
+        })}
       </div>
 
-      <button onClick={ilerle} disabled={secili === null}
-              className="btn-primary mt-4 w-full text-lg">
-        {son ? 'Bitir' : 'Sonraki soru'} →
-      </button>
+      {/* Geri bildirim — normal oyundaki gibi, buyume zihniyetiyle */}
+      {cevaplandi && (
+        <div className="mt-4 animate-slide-up">
+          <div className={`card p-5 ${secili === dogruIdx
+            ? 'border-mint-400 bg-mint-400/10' : 'border-slate-200'}`}>
+            <div className="flex items-start gap-3">
+              <Zeki mood={secili === dogruIdx ? 'cheer' : 'calm'} size={48} />
+              <div className="flex-1">
+                <p className={`text-lg font-black ${secili === dogruIdx
+                  ? 'text-mint-600' : 'text-slate-700'}`}>
+                  {secili === dogruIdx ? 'Doğru! 🎉' : 'Doğrusu şöyleydi'}
+                </p>
+                {secili !== dogruIdx && (
+                  <p className="mt-0.5 font-extrabold text-slate-800">
+                    {q.options[dogruIdx as number]}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <button onClick={ilerle} className="btn-primary mt-3 w-full text-lg">
+            {son ? 'Bitir' : 'Devam et'} →
+          </button>
+        </div>
+      )}
+
+      {!cevaplandi && (
+        <p className="mt-4 text-center text-sm font-bold text-slate-400">
+          Cevabını seç
+        </p>
+      )}
     </main>
   );
 }

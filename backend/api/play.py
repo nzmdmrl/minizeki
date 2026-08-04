@@ -178,13 +178,34 @@ def answer(body: AnswerIn, acc: Account = Depends(get_current_account),
     is_correct = body.selected == payload["ai"]
     cat_id = payload["cid"]
     qid = payload.get("qid")
+    mode = payload.get("mode", "quest")
+
+    # OKUMA SORULARI ISTISNASI
+    # Okuma modulu bu ucu SADECE aninda dogru/yanlis gostermek icin kullanir.
+    # Asil kayit /api/reading/complete'te ReadingSession olarak tutulur.
+    # Burada da kaydedilirse:
+    #   - Ayni cevap iki kez sayilir
+    #   - Okuma sorulari kategori istatistiklerine karisir
+    #   - Gizli seviye motoru okuma verisiyle bozulur
+    if mode == "reading":
+        return {
+            "correct": is_correct,
+            "answer_index": payload["ai"],
+            "correct_option": payload["opts"][payload["ai"]],
+            "medal_up": False,
+            "medal": None,
+            "advanced": False,
+            "advance_message": None,
+            "total_correct": 0,
+            "star_balance": p.star_balance,
+        }
 
     # Log
     db.add(AnswerLog(
         profile_id=p.id, category_id=cat_id, question_id=qid,
         band=payload["band"], grade=payload["grade"],
         is_correct=is_correct, duration_ms=max(0, body.duration_ms),
-        mode=payload.get("mode", "quest"),
+        mode=mode,
     ))
 
     # Yazili soru: gorulme kaydi + kalibrasyon

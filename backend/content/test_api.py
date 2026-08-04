@@ -286,6 +286,29 @@ def main():
         check(f"okuma cevaplari dengeli (en cok %{100 * _en // _tp})",
               _en <= _tp * 0.45)
 
+    # Okuma sorulari /api/answer'a gitse bile kategori istatistigine
+    # KARISMAMALI. Asil kayit ReadingSession'da tutulur; ikisi birden
+    # olursa cevap iki kez sayilir ve seviye motoru bozulur.
+    from models import AnswerLog as _AL
+    st4 = c.get(f"/api/reading/story?profile_id={pid}", headers=H).json()
+    oq4 = c.get(f"/api/reading/questions?story_id={st4['id']}"
+                f"&profile_id={pid}", headers=H).json()["questions"]
+    _db = _SL()
+    _once = _db.query(_AL).filter(_AL.profile_id == pid,
+                                  _AL.category_id == "okuma").count()
+    _db.close()
+    ra = c.post("/api/answer", headers=H, json={
+        "token": oq4[0]["token"], "selected": 0, "duration_ms": 0})
+    check("okuma sorusu /api/answer ile cevaplanabiliyor",
+          ra.status_code == 200, ra.text[:80])
+    if ra.status_code == 200:
+        check("cevap dogru/yanlis donuyor", "answer_index" in ra.json())
+    _db = _SL()
+    _sonra = _db.query(_AL).filter(_AL.profile_id == pid,
+                                   _AL.category_id == "okuma").count()
+    _db.close()
+    check("okuma cevabi AnswerLog'a yazilmiyor", _sonra == _once)
+
     # Okuma gunluk goreve GIRMEMELI (tek basina 1-2 dakika surer)
     rq2 = c.get(f"/api/quest/today?profile_id={pid}", headers=H)
     if rq2.status_code == 200:
