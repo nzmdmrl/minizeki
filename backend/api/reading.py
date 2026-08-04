@@ -180,6 +180,36 @@ def complete(body: ReadingIn, acc: Account = Depends(get_current_account),
     if s is None:
         raise HTTPException(404, "Metin bulunamadı")
 
+    # CIFT GONDERIM KORUMASI
+    # Ayni metin kisa sure icinde tekrar gonderilirse (cift tiklama,
+    # sayfa yenileme, ag tekrari) ikinci kayit olusturulmaz ve yildiz
+    # tekrar verilmez. Aksi halde cocuk ayni okumayi tekrar tekrar
+    # gondererek yildiz biriktirebilir.
+    if not body.reread:
+        yakin = datetime.utcnow() - timedelta(minutes=2)
+        onceki = (db.query(ReadingSession)
+                  .filter(ReadingSession.profile_id == p.id,
+                          ReadingSession.story_id == s.id,
+                          ReadingSession.created_at > yakin)
+                  .order_by(desc(ReadingSession.created_at)).first())
+        if onceki:
+            oran0 = (onceki.correct_count / onceki.total_questions
+                     if onceki.total_questions else 0)
+            return {
+                "correct": onceki.correct_count,
+                "total": onceki.total_questions,
+                "accuracy": round(100 * oran0),
+                "message": "Bu hikâyeyi az önce tamamladın.",
+                "speed": None,
+                "suspicious": onceki.suspicious,
+                "rewards": [],            # odul TEKRAR verilmez
+                "new_badges": [],
+                "star_balance": p.star_balance,
+                "offer_reread": False,
+                "breakdown": onceki.type_breakdown or {},
+                "duplicate": True,
+            }
+
     sorular = (db.query(StoryQuestion)
                .filter(StoryQuestion.story_id == s.id)
                .order_by(StoryQuestion.sort_order).all())

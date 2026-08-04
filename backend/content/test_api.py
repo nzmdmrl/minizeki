@@ -276,6 +276,25 @@ def main():
         check("okumadan gecme tespit edildi",
               rc3.status_code == 200 and rc3.json().get("suspicious") is True)
 
+    # Cift gonderim korumasi: ayni okuma iki kez gonderilirse ikinci
+    # kayit olusmamali ve yildiz tekrar verilmemeli.
+    st5 = c.get(f"/api/reading/story?profile_id={pid}", headers=H).json()
+    _db = _SL()
+    _a5 = [q.answer_index for q in _db.query(_SQ)
+           .filter(_SQ.story_id == st5["id"])
+           .order_by(_SQ.sort_order).all()]
+    _db.close()
+    _body = {"profile_id": pid, "story_id": st5["id"], "mode": "timed",
+             "duration_ms": 45000, "answers": _a5}
+    _r1 = c.post("/api/reading/complete", headers=H, json=_body)
+    _r2 = c.post("/api/reading/complete", headers=H, json=_body)
+    check("ilk gonderimde odul var",
+          _r1.status_code == 200 and len(_r1.json().get("rewards", [])) > 0)
+    check("cift gonderimde odul YOK",
+          _r2.status_code == 200 and len(_r2.json().get("rewards", [])) == 0)
+    check("cift gonderim isaretleniyor",
+          _r2.json().get("duplicate") is True)
+
     # Bug: tum dogru cevaplar A sikkindaydi
     _db = _SL()
     _dag = _C(x.answer_index for x in _db.query(_SQ).all())

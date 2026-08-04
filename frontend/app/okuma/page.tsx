@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { activeProfile } from '@/lib/api';
@@ -104,6 +104,17 @@ export default function OkumaPage() {
     }
   };
 
+  // Cikis: sorulara baslanmissa onay sor (diger kategorilerdeki gibi),
+  // yoksa sessizce cik.
+  const cik = () => {
+    if (asama === 'sorular' || asama === 'okuma') {
+      if (!confirm('Okumayı bırakmak istiyor musun? İlerlemen kaydedilmeyecek.')) {
+        return;
+      }
+    }
+    router.push('/kategoriler');
+  };
+
   const tekrarOku = () => {
     setTekrar(true);
     setSonuc(null);
@@ -123,9 +134,11 @@ export default function OkumaPage() {
     return <HazirEkrani metin={metin} sessiz={sessiz} setSessiz={setSessiz}
                         tekrar={tekrar} onBasla={basla} />;
   if (asama === 'okuma')
-    return <OkumaEkrani metin={metin} sessiz={sessiz} onBitir={okudum} />;
+    return <OkumaEkrani metin={metin} sessiz={sessiz} onBitir={okudum}
+                        onCik={cik} />;
   if (asama === 'sorular')
-    return <SoruEkrani metin={metin} sorular={sorular} onBitir={bitir} />;
+    return <SoruEkrani metin={metin} sorular={sorular} onBitir={bitir}
+                       onCik={cik} />;
   return <SonucEkrani sonuc={sonuc} metin={metin}
                       onTekrar={tekrarOku} onYeni={() => { setTekrar(false); yukle(true); }} />;
 }
@@ -186,9 +199,17 @@ function HazirEkrani({ metin, sessiz, setSessiz, tekrar, onBasla }: any) {
 
 /* ------------------------------------------------------------------ */
 
-function OkumaEkrani({ metin, sessiz, onBitir }: any) {
+function OkumaEkrani({ metin, sessiz, onBitir, onCik }: any) {
   return (
     <main className="mx-auto max-w-2xl px-4 py-6 no-select">
+      {/* Cikis: sessiz, sol ustte — diger kategorilerdeki gibi */}
+      <button onClick={onCik} aria-label="Çık"
+              className="mb-2 -ml-1 rounded-lg px-2 py-1 text-lg leading-none
+                         text-slate-300 transition hover:bg-slate-100
+                         hover:text-slate-500">
+        ←
+      </button>
+
       <div className="card mb-4 p-6 md:p-8">
         <h2 className="mb-4 text-2xl font-black text-slate-800">{metin.title}</h2>
         {/* Okuma metni: buyuk punto, genis satir araligi, kisa satir uzunlugu.
@@ -214,7 +235,12 @@ function OkumaEkrani({ metin, sessiz, onBitir }: any) {
 
 /* ------------------------------------------------------------------ */
 
-function SoruEkrani({ metin, sorular, onBitir }: any) {
+// Dogru cevapta otomatik gecis suresi.
+// QuestionPlayer ile AYNI olmali; farkli olursa cocuk iki ekranda
+// farkli ritim hisseder.
+const AUTO_NEXT_MS = 1500;
+
+function SoruEkrani({ metin, sorular, onBitir, onCik }: any) {
   const [i, setI] = useState(0);
   const [cevaplar, setCevaplar] = useState<number[]>([]);
   const [secili, setSecili] = useState<number | null>(null);
@@ -222,14 +248,51 @@ function SoruEkrani({ metin, sorular, onBitir }: any) {
   const [bakti, setBakti] = useState(false);
   const [metinAcik, setMetinAcik] = useState(false);
   const [bekle, setBekle] = useState(false);
+  const [autoPct, setAutoPct] = useState(0);
 
   const q = sorular[i];
   const son = i === sorular.length - 1;
   const cevaplandi = dogruIdx !== null;
+  const dogruMu = cevaplandi && secili === dogruIdx;
 
-  // Sikka basinca ANINDA geri bildirim.
-  // Onceki surumde once secip sonra "Sonraki soru"ya basmak gerekiyordu;
-  // hem normal oyundan farkliydi hem de secim gorunmuyordu.
+  // Cift gonderim korumasi: otomatik gecis + elle tiklama ayni anda
+  // tetiklenirse onBitir iki kez cagrilir ve cocugun okumasi iki kez
+  // kaydedilir. Bu bayrak bunu engeller.
+  const bitirildi = useRef(false);
+
+  const ilerle = useCallback(() => {
+    const yeni = [...cevaplar, secili as number];
+    setCevaplar(yeni);
+    setSecili(null);
+    setDogruIdx(null);
+    setMetinAcik(false);
+    setAutoPct(0);
+
+    if (son) {
+      if (bitirildi.current) return;
+      bitirildi.current = true;
+      onBitir(yeni, bakti);
+    } else {
+      setI((x) => x + 1);
+    }
+  }, [cevaplar, secili, son, bakti, onBitir]);
+
+  // Dogru cevapta otomatik gecis — diger kategorilerdeki gibi.
+  // Yanlista otomatik gecis YOK: cocuk dogru cevabi okuyabilmeli.
+  useEffect(() => {
+    if (!dogruMu) return;
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      const p = Math.min(100, ((Date.now() - t0) / AUTO_NEXT_MS) * 100);
+      setAutoPct(p);
+      if (p >= 100) {
+        clearInterval(iv);
+        ilerle();
+      }
+    }, 50);
+    return () => clearInterval(iv);
+  }, [dogruMu, ilerle]);
+
   const sec = async (idx: number) => {
     if (cevaplandi || bekle) return;
     setBekle(true);
@@ -244,31 +307,26 @@ function SoruEkrani({ metin, sorular, onBitir }: any) {
       const d = await r.json();
       setDogruIdx(d.answer_index);
     } catch {
-      // Ag hatasi: cocugu bekletme, secimi dogru kabul edip devam et
-      setDogruIdx(idx);
+      setDogruIdx(idx);   // ag hatasi: cocugu bekletme
     } finally {
       setBekle(false);
     }
   };
 
-  const ilerle = () => {
-    if (!cevaplandi) return;
-    const yeni = [...cevaplar, secili as number];
-    setCevaplar(yeni);
-    setSecili(null);
-    setDogruIdx(null);
-    setMetinAcik(false);
-    if (son) onBitir(yeni, bakti);
-    else setI(i + 1);
-  };
-
   return (
     <main className="mx-auto max-w-2xl px-4 py-6 no-select">
       <div className="mb-4">
-        <div className="mb-2 flex items-center justify-between text-sm font-extrabold">
+        <div className="mb-2 flex items-center gap-2 text-sm font-extrabold">
+          {/* Cikis: sessiz, kucuk, sol ustte — diger kategorilerdeki gibi */}
+          <button onClick={onCik} aria-label="Çık"
+                  className="-ml-1 rounded-lg px-2 py-1 text-lg leading-none
+                             text-slate-300 transition hover:bg-slate-100
+                             hover:text-slate-500">
+            ←
+          </button>
           <span className="text-slate-400">Soru {i + 1}/{sorular.length}</span>
           <button onClick={() => { setMetinAcik(!metinAcik); setBakti(true); }}
-                  className="rounded-lg px-3 py-1.5 text-xs font-extrabold
+                  className="ml-auto rounded-lg px-3 py-1.5 text-xs font-extrabold
                              text-brand-500 hover:bg-brand-50">
             {metinAcik ? 'Hikâyeyi kapat' : 'Hikâyeye tekrar bak'}
           </button>
@@ -306,27 +364,36 @@ function SoruEkrani({ metin, sorular, onBitir }: any) {
         })}
       </div>
 
-      {/* Geri bildirim — normal oyundaki gibi, buyume zihniyetiyle */}
-      {cevaplandi && (
+      {/* Dogru cevap: kisa mujde + otomatik gecis cubugu */}
+      {dogruMu && (
         <div className="mt-4 animate-slide-up">
-          <div className={`card p-5 ${secili === dogruIdx
-            ? 'border-mint-400 bg-mint-400/10' : 'border-slate-200'}`}>
+          <div className="card border-mint-400 bg-mint-400/10 p-4">
+            <div className="flex items-center gap-3">
+              <Zeki mood="cheer" size={40} />
+              <p className="text-lg font-black text-mint-600">Doğru! 🎉</p>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-mint-400/20">
+              <div className="h-full rounded-full bg-mint-500 transition-none"
+                   style={{ width: `${autoPct}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yanlis cevap: otomatik gecis YOK, cocuk dogruyu okusun */}
+      {cevaplandi && !dogruMu && (
+        <div className="mt-4 animate-slide-up">
+          <div className="card p-5">
             <div className="flex items-start gap-3">
-              <Zeki mood={secili === dogruIdx ? 'cheer' : 'calm'} size={48} />
+              <Zeki mood="calm" size={48} />
               <div className="flex-1">
-                <p className={`text-lg font-black ${secili === dogruIdx
-                  ? 'text-mint-600' : 'text-slate-700'}`}>
-                  {secili === dogruIdx ? 'Doğru! 🎉' : 'Doğrusu şöyleydi'}
+                <p className="text-lg font-black text-slate-700">Doğrusu şöyleydi</p>
+                <p className="mt-0.5 font-extrabold text-slate-800">
+                  {q.options[dogruIdx as number]}
                 </p>
-                {secili !== dogruIdx && (
-                  <p className="mt-0.5 font-extrabold text-slate-800">
-                    {q.options[dogruIdx as number]}
-                  </p>
-                )}
               </div>
             </div>
           </div>
-
           <button onClick={ilerle} className="btn-primary mt-3 w-full text-lg">
             {son ? 'Bitir' : 'Devam et'} →
           </button>
