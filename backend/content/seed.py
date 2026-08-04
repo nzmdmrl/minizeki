@@ -28,6 +28,9 @@ from content import sorular_hayat_ek2 as she2  # noqa: E402
 from content import sorular_turkce_ek2 as ste2  # noqa: E402
 from content.metinler_12 import METINLER_1, METINLER_2  # noqa: E402
 from content.metinler_34 import METINLER_3, METINLER_4  # noqa: E402
+from content.metinler_ek import (  # noqa: E402
+    METINLER_1_EK, METINLER_2_EK, METINLER_3_EK, METINLER_4_EK,
+)
 
 
 # kategori_id -> soru listesi
@@ -156,7 +159,10 @@ def seed_stories(db) -> tuple[int, int]:
 
     eklenen = guncellenen = 0
     sira = 0
-    for liste in (METINLER_1, METINLER_2, METINLER_3, METINLER_4):
+    for liste in (METINLER_1, METINLER_1_EK,
+                  METINLER_2, METINLER_2_EK,
+                  METINLER_3, METINLER_3_EK,
+                  METINLER_4, METINLER_4_EK):
         for (sid, baslik, metin, gmin, gmax, seviye, sorular) in liste:
             sira += 1
             temiz = _metni_duzenle(metin)
