@@ -24,10 +24,53 @@ export const token = {
   clear: () => { store.del('mz_token'); store.del('mz_pin'); store.del('mz_profile'); store.del('mz_admin'); },
 };
 
+/**
+ * JWT'nin son kullanma zamanini okur. Cozulemezse null doner.
+ * Sunucuya sormadan "bu token daha gecerli mi" diye bakmak icin.
+ */
+function tokenBitis(t: string | null): number | null {
+  if (!t) return null;
+  try {
+    const govde = JSON.parse(atob(t.split('.')[1]));
+    return typeof govde.exp === 'number' ? govde.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ebeveyn PIN oturumu.
+ *
+ * TASARIM: Token sessionStorage'da tutulur — sekme kapaninca silinir.
+ * Boylece cocuk daha sonra ayni cihazda tarayiciyi acinca ebeveyn
+ * paneline giremez.
+ *
+ * get() suresi dolmus token'i DONDURMEZ ve temizler. Onceki surumde
+ * sadece "token var mi" diye bakiliyordu; suresi dolmus token'la panel
+ * aciliyor, sonra her istek 401 veriyor ve ekranda
+ * "Gecersiz PIN oturumu" hatasi kaliyordu.
+ */
 export const pinToken = {
-  get: () => store.get('mz_pin'),
+  get: () => {
+    const t = store.get('mz_pin');
+    if (!t) return null;
+    const bitis = tokenBitis(t);
+    // 2 dakika pay: kullanici panelde gezerken sure dolmasin.
+    // Kisa pay birakilirsa "token gecerli" deyip istek atiyor, istek
+    // sirasinda sure doluyor ve kullanici hata mesaji goruyordu.
+    if (bitis !== null && bitis < Date.now() + 120_000) {
+      store.del('mz_pin');
+      return null;
+    }
+    return t;
+  },
   set: (t: string) => store.set('mz_pin', t),
   clear: () => store.del('mz_pin'),
+  // Kalan sure (dakika)
+  kalanDakika: () => {
+    const bitis = tokenBitis(store.get('mz_pin'));
+    return bitis === null ? null : Math.max(0, Math.round((bitis - Date.now()) / 60000));
+  },
 };
 
 export const adminToken = {
@@ -127,9 +170,17 @@ async function req<T>(
       msg = j.detail || msg;
     } catch { /* ignore */ }
 
-    if (res.status === 401 && !pin && !admin) {
-      token.clear();
-      if (typeof window !== 'undefined') window.location.href = '/giris';
+    if (res.status === 401) {
+      if (pin) {
+        // PIN oturumu bitti: token'i temizle ki sayfa PIN ekranina donsun.
+        // Kullaniciya hata gosterilmez, sadece tekrar PIN sorulur.
+        pinToken.clear();
+      } else if (admin) {
+        adminToken.clear();
+      } else {
+        token.clear();
+        if (typeof window !== 'undefined') window.location.href = '/giris';
+      }
     }
     throw new ApiError(msg, res.status);
   }

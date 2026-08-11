@@ -12,6 +12,8 @@ export default function EbeveynPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [sel, setSel] = useState<string>('');
 
+  // pinToken.get() suresi dolmus token'i dondurmez ve temizler.
+  // Boylece "token var ama gecersiz" durumu olusmaz.
   useEffect(() => {
     if (!token.get()) { router.replace('/giris'); return; }
     if (pinToken.get()) setAuthed(true);
@@ -20,6 +22,25 @@ export default function EbeveynPage() {
       if (ps.length) setSel(ps[0].id);
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sekme arka planda uzun sure kalirsa token suresi dolabilir.
+  // Kullanici geri dondugunde kontrol et.
+  useEffect(() => {
+    const kontrol = () => {
+      if (authed && !pinToken.get()) setAuthed(false);
+    };
+    document.addEventListener('visibilitychange', kontrol);
+    const iv = setInterval(kontrol, 60_000);
+    return () => {
+      document.removeEventListener('visibilitychange', kontrol);
+      clearInterval(iv);
+    };
+  }, [authed]);
+
+  const pinBitti = () => {
+    pinToken.clear();
+    setAuthed(false);
+  };
 
   if (!authed) return <PinGate onOk={() => setAuthed(true)} />;
   if (!profiles.length) return (
@@ -68,7 +89,7 @@ export default function EbeveynPage() {
         </div>
       )}
 
-      {sel && <Dashboard profileId={sel} />}
+      {sel && <Dashboard profileId={sel} onPinBitti={pinBitti} />}
     </main>
   );
 }
@@ -87,7 +108,18 @@ function PinGate({ onOk }: { onOk: () => void }) {
       pinToken.set(r.pin_token);
       onOk();
     } catch (e: any) {
-      setErr(e.message);
+      // Sunucudan gelen teknik mesajlar yerine anlasilir metin goster.
+      // "Gecersiz PIN oturumu" gibi ifadeler kullaniciya bir sey anlatmaz.
+      const kod = e.status;
+      if (kod === 401 || kod === 403) {
+        setErr('PIN yanlış. Tekrar deneyin.');
+      } else if (kod === 429) {
+        setErr(e.message || 'Çok fazla deneme yapıldı. Biraz bekleyin.');
+      } else if (!kod) {
+        setErr('Bağlantı kurulamadı. İnternetinizi kontrol edin.');
+      } else {
+        setErr(e.message || 'Bir sorun oluştu, tekrar deneyin.');
+      }
       setPin('');
     } finally {
       setBusy(false);
@@ -147,7 +179,8 @@ const GRADE_LABEL: Record<number, string> = {
   4: '4. sınıf', 5: '5. sınıf',
 };
 
-function Dashboard({ profileId }: { profileId: string }) {
+function Dashboard({ profileId, onPinBitti }:
+                   { profileId: string; onPinBitti: () => void }) {
   const [d, setD] = useState<any>(null);
   const [err, setErr] = useState('');
   const [tab, setTab] = useState<'rapor' | 'ayar'>('rapor');
@@ -155,7 +188,12 @@ function Dashboard({ profileId }: { profileId: string }) {
   const load = async () => {
     setErr('');
     try { setD(await api.dashboard(profileId)); }
-    catch (e: any) { setErr(e.message); }
+    catch (e: any) {
+      // PIN oturumu bitti: hata gostermek yerine sessizce PIN ekranina don.
+      // Ebeveyn "Gecersiz PIN oturumu" gibi teknik bir mesaj gormemeli.
+      if (e.status === 401) { onPinBitti(); return; }
+      setErr(e.message);
+    }
   };
 
   useEffect(() => { setD(null); load(); }, [profileId]); // eslint-disable-line

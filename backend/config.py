@@ -18,6 +18,10 @@ DATABASE_URL = os.getenv(
 SECRET_KEY = os.getenv("SECRET_KEY", "minizeki-dev-secret-degistir-mutlaka")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
+# Ebeveyn paneli oturum suresi. Kisa olursa panel acikken sure dolar
+# ve kullanici hata mesaji gorur; uzun olursa cocuk erisim riski artar.
+# 12 saat + sessionStorage (sekme kapaninca silinir) dengeli bir secim.
+PIN_TOKEN_EXPIRE_HOURS = int(os.getenv("PIN_TOKEN_EXPIRE_HOURS", "12"))
 QUESTION_TOKEN_EXPIRE_MIN = 15
 
 # --- CORS ---

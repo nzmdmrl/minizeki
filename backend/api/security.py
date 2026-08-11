@@ -74,10 +74,21 @@ def get_profile_or_404(db: Session, account: Account, profile_id: str) -> Profil
 # ---------------------------------------------------------------- PIN
 
 def create_pin_token(account_id: str) -> str:
+    """
+    Ebeveyn paneli oturum token'i.
+
+    SURE: 2 saat kisaydi — ebeveyn paneli acip birakip donunce
+    "Gecersiz PIN oturumu" hatasi aliyordu. 12 saat, bir gunun
+    calisma dilimini kapsar ve ertesi gun yeniden PIN sorar.
+
+    GUVENLIK: Token istemcide sessionStorage'da tutulur; sekme
+    kapaninca silinir. Yani cocuk daha sonra ayni cihazda tarayiciyi
+    acinca panele giremez, sure uzun olsa bile.
+    """
     payload = {
         "sub": account_id,
         "typ": "pin",
-        "exp": datetime.utcnow() + timedelta(hours=2),
+        "exp": datetime.utcnow() + timedelta(hours=cfg.PIN_TOKEN_EXPIRE_HOURS),
     }
     return jwt.encode(payload, cfg.SECRET_KEY, algorithm=cfg.ALGORITHM)
 
