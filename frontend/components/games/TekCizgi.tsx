@@ -229,7 +229,7 @@ export default function TekCizgi({ onLevel }: { onLevel?: (n: number) => void })
            onPointerDown={basla} onPointerMove={surukle}
            onPointerUp={bitir} onPointerLeave={bitir} onPointerCancel={bitir}
            className="relative aspect-square w-full touch-none overflow-hidden
-                      rounded-2xl border-4 border-slate-200 bg-white"
+                      rounded-2xl border-4 border-slate-300 bg-white"
            style={{ display: 'grid',
                     gridTemplateColumns: `repeat(${n}, 1fr)`,
                     gridTemplateRows: `repeat(${n}, 1fr)` }}>
@@ -260,7 +260,12 @@ export default function TekCizgi({ onLevel }: { onLevel?: (n: number) => void })
           const izde = path.includes(i);
           const sonKare = path[path.length - 1] === i;
           return (
-            <div key={i} className="relative border-b border-r border-slate-100">
+            // Izgara cizgileri: soluk olursa cocuk kareleri ayirt edemiyor.
+            // Son sutun/satirda ic cizgi yok (dis cerceve zaten var).
+            <div key={i}
+                 className={`relative ${
+                   (i % n) < n - 1 ? 'border-r-2 border-r-slate-300' : ''} ${
+                   Math.floor(i / n) < n - 1 ? 'border-b-2 border-b-slate-300' : ''}`}>
               {izde && (
                 <div className={`absolute inset-[22%] rounded-md ${
                   kazandi ? 'bg-mint-400/20' : 'bg-brand-400/15'}`} />
