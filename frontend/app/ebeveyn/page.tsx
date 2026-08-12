@@ -378,6 +378,26 @@ function Rapor({ d }: { d: any }) {
   );
 }
 
+function MolaSuresi({ s, save }: { s: any; save: (v: any) => void }) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-extrabold text-slate-600">
+        Bir mola ne kadar sürsün?
+      </p>
+      <div className="grid grid-cols-4 gap-2">
+        {[5, 10, 15, 20].map((m) => (
+          <button key={m} onClick={() => save({ break_minutes: m })}
+                  className={`rounded-xl py-2.5 text-sm font-extrabold transition ${
+                    s.break_minutes === m ? 'bg-sun-500 text-white'
+                                          : 'bg-slate-100 text-slate-500'}`}>
+            {m} dk
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MolaBolumu({ m }: { m: any }) {
   const enBuyuk = Math.max(
     1, ...m.history.map((h: any) => Math.max(h.study_min, h.break_min)));
@@ -387,7 +407,10 @@ function MolaBolumu({ m }: { m: any }) {
       <div className="mb-1 flex items-baseline justify-between">
         <h2 className="font-black text-slate-700">⏱️ Çalışma ve Mola</h2>
         <span className="text-xs font-bold text-slate-400">
-          {m.enabled ? `${m.study_minutes} dk → ${m.break_minutes} dk` : 'kapalı'}
+          {m.mode === 'off' ? 'kapalı'
+            : m.mode === 'free'
+              ? `serbest · ${m.daily_limit ? `günde ${m.daily_limit} dk` : 'sınırsız'}`
+              : `${m.study_minutes} dk → ${m.break_minutes} dk`}
         </span>
       </div>
       <p className="mb-4 text-xs font-bold text-slate-400">
@@ -441,6 +464,33 @@ function MolaBolumu({ m }: { m: any }) {
           <i className="h-2 w-2 rounded-sm bg-sun-400" /> mola
         </span>
       </div>
+
+      {/* Oyun bazli sure dagilimi */}
+      {m.games?.length > 0 && (
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">
+            Hangi oyunda ne kadar (son 30 gün)
+          </p>
+          <div className="grid gap-2">
+            {m.games.map((o: any) => (
+              <div key={o.id} className="flex items-center gap-3 rounded-xl
+                                          bg-slate-50 px-3 py-2.5">
+                <span className="text-xl">{o.icon}</span>
+                <div className="flex-1">
+                  <p className="text-sm font-black text-slate-700">{o.name}</p>
+                  <p className="text-[11px] font-bold text-slate-400">
+                    {o.sessions} kez oynadı
+                    {o.best_level > 0 && ` · en iyi bölüm ${o.best_level}`}
+                  </p>
+                </div>
+                <span className="text-sm font-black text-slate-600">
+                  {o.minutes} dk
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -768,22 +818,37 @@ function Ayarlar({ d, pid, reload }: { d: any; pid: string; reload: () => void }
 
         {/* --- Mola --- */}
         <div className="border-t border-slate-100 pt-5">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="font-black text-slate-700">Mola</h2>
-            <button onClick={() => save({ break_enabled: !s.break_enabled })}
-                    className={`rounded-xl px-4 py-2 text-sm font-extrabold transition ${
-                      s.break_enabled ? 'bg-mint-500 text-white'
-                                      : 'bg-slate-100 text-slate-500'}`}>
-              {s.break_enabled ? 'Açık ✓' : 'Kapalı'}
-            </button>
-          </div>
-          <p className="mb-4 text-xs font-bold text-slate-400">
-            Çocuğunuz belirlediğiniz süre kadar çalışınca oyun molası hakkı
-            kazanır. Mola bir ödül değil, dinlenme molasıdır — kullanmazsa
+          <h2 className="mb-2 font-black text-slate-700">Mola</h2>
+          <p className="mb-3 text-xs font-bold text-slate-400">
+            Mola bir ödül değil, dinlenme molasıdır. Çocuğunuz kullanmazsa
             bir şey kaybetmez.
           </p>
 
-          {s.break_enabled && (
+          <div className="mb-4 grid gap-2">
+            {[
+              ['off', 'Kapalı', 'Mola bölümü hiç görünmez'],
+              ['earned', 'Çalışınca hak kazansın',
+               'Belirlediğiniz süre kadar çalışınca mola açılır'],
+              ['free', 'İstediği zaman kullansın',
+               'Çalışma şartı yok; sadece günlük süre sınırı geçerli'],
+            ].map(([kod, ad, aciklama]) => {
+              const secili = (s.break_mode || (s.break_enabled ? 'earned' : 'off')) === kod;
+              return (
+                <button key={kod} onClick={() => save({ break_mode: kod })}
+                        className={`rounded-2xl border-2 p-3 text-left transition ${
+                          secili ? 'border-brand-500 bg-brand-50'
+                                 : 'border-slate-200 bg-white'}`}>
+                  <p className={`font-black ${secili ? 'text-brand-600'
+                                                     : 'text-slate-700'}`}>
+                    {ad} {secili && '✓'}
+                  </p>
+                  <p className="text-xs font-bold text-slate-400">{aciklama}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {(s.break_mode || (s.break_enabled ? 'earned' : 'off')) === 'earned' && (
             <div className="grid gap-4">
               <div>
                 <p className="mb-2 text-sm font-extrabold text-slate-600">
@@ -800,28 +865,42 @@ function Ayarlar({ d, pid, reload }: { d: any; pid: string; reload: () => void }
                   ))}
                 </div>
               </div>
+              <MolaSuresi s={s} save={save} />
+              <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm
+                            font-bold text-slate-500">
+                <b className="text-slate-700">{s.study_minutes || 30} dakika</b>{' '}
+                çalışınca <b className="text-slate-700">{s.break_minutes || 15} dakika</b>{' '}
+                mola hakkı
+              </p>
+            </div>
+          )}
 
+          {(s.break_mode || (s.break_enabled ? 'earned' : 'off')) === 'free' && (
+            <div className="grid gap-4">
+              <MolaSuresi s={s} save={save} />
               <div>
                 <p className="mb-2 text-sm font-extrabold text-slate-600">
-                  Mola ne kadar sürsün?
+                  Günlük toplam mola sınırı
                 </p>
                 <div className="grid grid-cols-4 gap-2">
-                  {[5, 10, 15, 20].map((m) => (
-                    <button key={m} onClick={() => save({ break_minutes: m })}
+                  {[20, 30, 45, 0].map((m) => (
+                    <button key={m} onClick={() => save({ break_daily_limit: m })}
                             className={`rounded-xl py-2.5 text-sm font-extrabold transition ${
-                              s.break_minutes === m ? 'bg-sun-500 text-white'
-                                                    : 'bg-slate-100 text-slate-500'}`}>
-                      {m} dk
+                              (s.break_daily_limit ?? 30) === m
+                                ? 'bg-brand-500 text-white'
+                                : 'bg-slate-100 text-slate-500'}`}>
+                      {m === 0 ? 'Sınırsız' : `${m} dk`}
                     </button>
                   ))}
                 </div>
               </div>
-
               <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm
                             font-bold text-slate-500">
-                Şu an: <b className="text-slate-700">{s.study_minutes || 30} dakika</b>{' '}
-                çalışınca <b className="text-slate-700">{s.break_minutes || 15} dakika</b>{' '}
-                mola hakkı
+                İstediği zaman <b className="text-slate-700">
+                {s.break_minutes || 15} dakikalık</b> mola yapabilir; günde
+                toplam <b className="text-slate-700">
+                {(s.break_daily_limit ?? 30) === 0
+                  ? 'sınırsız' : `${s.break_daily_limit ?? 30} dakika`}</b>.
               </p>
             </div>
           )}

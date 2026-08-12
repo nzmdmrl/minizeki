@@ -32,7 +32,9 @@ function MolaKarti() {
         <p className="text-xs font-bold text-slate-400">
           {hazir
             ? `${kalanDk} dakika oyun hakkın var`
-            : `${Math.round((d.next_break_in || 0) / 60)} dakika daha çalış`}
+            : d.mode === 'free'
+              ? 'Bugünlük mola bitti'
+              : `${Math.round((d.next_break_in || 0) / 60)} dakika daha çalış`}
         </p>
       </div>
       {hazir && (

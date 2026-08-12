@@ -50,6 +50,20 @@ OYUNLAR = [
 ]
 
 
+def aktif_mod(p) -> str:
+    """
+    Profilin gecerli mola modu.
+
+    break_enabled ESKI alandir. Eski kayitlarda False ise mod "off"
+    kabul edilir; boylece break_mode kolonu sonradan eklendiginde
+    molayi kapatmis ebeveynlerde mola kendiliginden acilmaz.
+    """
+    if p.break_enabled is False:
+        return "off"
+    mod = (p.break_mode or "earned").lower()
+    return mod if mod in ("off", "earned", "free") else "earned"
+
+
 def _gun_araligi(gun: date | None = None) -> tuple[datetime, datetime]:
     g = gun or datetime.utcnow().date()
     bas = datetime.combine(g, datetime.min.time())
@@ -112,42 +126,57 @@ def status(profile_id: str, acc: Account = Depends(get_current_account),
            db: Session = Depends(get_db)):
     """Mola hakki var mi, ne kadar kaldi?"""
     p = get_profile_or_404(db, acc, profile_id)
+    mod = aktif_mod(p)
 
-    if not p.break_enabled:
-        return {"enabled": False}
+    if mod == "off":
+        return {"enabled": False, "mode": "off"}
 
     calisma = calisma_saniyesi(db, p.id)
     kullanilan = mola_saniyesi(db, p.id)
-
-    gerekli = (p.study_minutes or 30) * 60
     mola_hakki = (p.break_minutes or 15) * 60
 
-    # Kac tam "calisma dilimi" tamamlandi -> o kadar mola hakki
-    dilim = calisma // gerekli if gerekli > 0 else 0
-    toplam_hak = dilim * mola_hakki
-    kalan = max(0, toplam_hak - kullanilan)
-
-    # Devam eden mola var mi?
     acik = (db.query(BreakSession)
             .filter(BreakSession.profile_id == p.id,
                     BreakSession.ended_at.is_(None))
             .order_by(desc(BreakSession.started_at)).first())
 
-    return {
+    ortak = {
         "enabled": True,
-        "can_start": kalan > 0 and acik is None,
-        "remaining_seconds": kalan,
+        "mode": mod,
         "study_seconds": calisma,
-        "study_required": gerekli,
-        # Bir sonraki mola icin daha ne kadar calismali
-        "next_break_in": max(0, gerekli - (calisma % gerekli)) if gerekli else 0,
         "used_today": kullanilan,
         "break_minutes": p.break_minutes or 15,
-        "study_minutes": p.study_minutes or 30,
         "active": ({"id": acik.id,
                     "started_at": acik.started_at.isoformat(),
                     "game_id": acik.game_id} if acik else None),
         "games": OYUNLAR,
+    }
+
+    if mod == "free":
+        # Serbest mod: calisma sarti yok, sadece gunluk tavan.
+        tavan = (p.break_daily_limit or 0) * 60      # 0 = sinirsiz
+        kalan_gun = (max(0, tavan - kullanilan) if tavan else mola_hakki)
+        # Tek seferde en fazla bir mola suresi kadar
+        kalan = min(kalan_gun, mola_hakki) if tavan else mola_hakki
+        return {
+            **ortak,
+            "can_start": kalan > 0 and acik is None,
+            "remaining_seconds": kalan,
+            "daily_limit": p.break_daily_limit or 0,
+            "daily_left": kalan_gun,
+        }
+
+    # Kazanilan mod: belli sure calisinca hak olusur
+    gerekli = (p.study_minutes or 30) * 60
+    dilim = calisma // gerekli if gerekli > 0 else 0
+    kalan = max(0, dilim * mola_hakki - kullanilan)
+    return {
+        **ortak,
+        "can_start": kalan > 0 and acik is None,
+        "remaining_seconds": kalan,
+        "study_required": gerekli,
+        "next_break_in": max(0, gerekli - (calisma % gerekli)) if gerekli else 0,
+        "study_minutes": p.study_minutes or 30,
     }
 
 
@@ -162,16 +191,27 @@ class BaslatIn(BaseModel):
 def start(body: BaslatIn, acc: Account = Depends(get_current_account),
           db: Session = Depends(get_db)):
     p = get_profile_or_404(db, acc, body.profile_id)
+    mod = aktif_mod(p)
 
-    if not p.break_enabled:
+    if mod == "off":
         raise HTTPException(403, "Mola özelliği kapalı")
 
-    calisma = calisma_saniyesi(db, p.id)
     kullanilan = mola_saniyesi(db, p.id)
-    gerekli = (p.study_minutes or 30) * 60
     mola_hakki = (p.break_minutes or 15) * 60
-    dilim = calisma // gerekli if gerekli > 0 else 0
-    kalan = max(0, dilim * mola_hakki - kullanilan)
+
+    if mod == "free":
+        tavan = (p.break_daily_limit or 0) * 60
+        if tavan:
+            kalan = min(max(0, tavan - kullanilan), mola_hakki)
+        else:
+            kalan = mola_hakki
+        hata_metni = "Bugünkü mola sürenin tamamını kullandın"
+    else:
+        calisma = calisma_saniyesi(db, p.id)
+        gerekli = (p.study_minutes or 30) * 60
+        dilim = calisma // gerekli if gerekli > 0 else 0
+        kalan = max(0, dilim * mola_hakki - kullanilan)
+        hata_metni = "Henüz mola hakkın yok"
 
     # ACIK MOLA VARSA ONA DEVAM ET
     # Cocuk sayfayi yenilerse veya sekmeye geri donerse molasi
@@ -194,7 +234,7 @@ def start(body: BaslatIn, acc: Account = Depends(get_current_account),
                 "started_at": acik.started_at.isoformat(), "resumed": True}
 
     if kalan <= 0:
-        raise HTTPException(400, "Henüz mola hakkın yok")
+        raise HTTPException(400, hata_metni)
 
     oturum = BreakSession(profile_id=p.id, game_id=body.game_id)
     db.add(oturum)

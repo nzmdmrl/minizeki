@@ -22,6 +22,9 @@ import TekCizgi from '@/components/games/TekCizgi';
 
 type Durum = {
   enabled: boolean;
+  mode?: 'off' | 'earned' | 'free';
+  daily_limit?: number;
+  daily_left?: number;
   can_start?: boolean;
   remaining_seconds?: number;
   study_seconds?: number;
@@ -153,6 +156,7 @@ function KapaliEkran() {
 
 function HazirEkrani({ d, onBasla }: { d: Durum; onBasla: () => void }) {
   const hazir = d.can_start;
+  const serbest = d.mode === 'free';
   const calisma = Math.round((d.study_seconds || 0) / 60);
   const gerekli = Math.round((d.study_required || 1800) / 60);
   const yuzde = Math.min(100, ((d.study_seconds || 0) % (d.study_required || 1800))
@@ -172,10 +176,17 @@ function HazirEkrani({ d, onBasla }: { d: Durum; onBasla: () => void }) {
 
       {hazir ? (
         <div className="card p-6 text-center">
-          <p className="text-lg font-black text-mint-600">Mola zamanı!</p>
+          <p className="text-lg font-black text-mint-600">
+            {serbest ? 'Mola yapabilirsin' : 'Mola zamanı!'}
+          </p>
           <p className="mt-1 font-bold text-slate-500">
             {Math.round((d.remaining_seconds || 0) / 60)} dakika oyun oynayabilirsin
           </p>
+          {serbest && (d.daily_limit || 0) > 0 && (
+            <p className="mt-1 text-xs font-bold text-slate-400">
+              Bugün {Math.round((d.daily_left || 0) / 60)} dakika hakkın kaldı
+            </p>
+          )}
 
           <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-left">
             <div className="flex items-center gap-3">
@@ -192,6 +203,20 @@ function HazirEkrani({ d, onBasla }: { d: Durum; onBasla: () => void }) {
           <button onClick={onBasla} className="btn-primary mt-5 w-full text-lg">
             Molaya başla
           </button>
+        </div>
+      ) : serbest ? (
+        // Serbest modda mola hakki yoksa tek sebep gunluk tavan dolmus olmasi
+        <div className="card p-6 text-center">
+          <p className="text-lg font-black text-slate-700">
+            Bugünlük mola bitti
+          </p>
+          <p className="mt-1 font-bold text-slate-500">
+            Bugün {Math.round((d.used_today || 0) / 60)} dakika mola yaptın.
+            Yarın yeniden başlıyor.
+          </p>
+          <Link href="/gorev" className="btn-primary mt-5 w-full text-lg">
+            Günlük göreve git
+          </Link>
         </div>
       ) : (
         <div className="card p-6 text-center">

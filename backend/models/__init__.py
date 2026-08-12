@@ -56,11 +56,19 @@ class Profile(Base):
     daily_limit_min = Column(Integer, default=30)
 
     # --- Mola ayarlari ---
-    # Cocuk belli sure calisinca mola hakki kazanir. Ebeveyn bu sureleri
-    # panelden ayarlar. break_enabled=False ise mola bolumu hic gorunmez.
+    # break_mode:
+    #   "off"    : mola bolumu hic gorunmez
+    #   "earned" : belli sure calisinca mola hakki kazanilir (varsayilan)
+    #   "free"   : cocuk istedigi zaman mola yapabilir, gunluk tavan gecerli
+    #
+    # break_enabled ESKI alandir; yeni kod break_mode kullanir ama
+    # eski kayitlarda break_enabled=False ise mod "off" sayilir.
     break_enabled = Column(Boolean, default=True)
+    break_mode = Column(String(10), default="earned")
     study_minutes = Column(Integer, default=30)   # kac dk calisinca mola hakki
     break_minutes = Column(Integer, default=15)   # mola ne kadar surer
+    # Serbest modda gunluk toplam mola tavani (dakika). 0 = sinirsiz.
+    break_daily_limit = Column(Integer, default=30)
 
     # Odak modu
     focus_category_id = Column(String(50))

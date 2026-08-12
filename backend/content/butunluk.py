@@ -109,6 +109,12 @@ KONTROLLER = [
      "Ebeveyn panelinde mola raporu"),
     ("api/parent.py", "study_minutes: int | None",
      "Mola ayarlari degistirilebiliyor"),
+    ("api/break_time.py", "def aktif_mod",
+     "Mola modu (off/earned/free)"),
+    ("api/parent.py", "best_level",
+     "Oyun bazli sure raporu"),
+    ("models/__init__.py", "break_mode",
+     "Serbest mola modu alani"),
 ]
 
 
