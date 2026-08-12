@@ -104,9 +104,121 @@ function bolumUret(L: number): Level {
   return { n: spec.n, checkpoints, solution: sol };
 }
 
+/**
+ * NASIL OYNANIR — animasyonlu tanitim
+ *
+ * Cocuk okumadan da anlayabilmeli: 3x3 kucuk bir tahtada parmak
+ * hareketi canlandirilir. Yazi minimum tutulur.
+ */
+function NasilOynanir({ onBasla }: { onBasla: () => void }) {
+  // 3x3 ornek: 1'den 3'e sirayla, tum kareler bir kez
+  const N = 3;
+  const YOL = [0, 1, 2, 5, 4, 3, 6, 7, 8];
+  const NOKTA: Record<number, number> = { 0: 1, 3: 2, 8: 3 };
+
+  const [adim, setAdim] = useState(0);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setAdim((a) => (a >= YOL.length ? 0 : a + 1));
+    }, 520);
+    return () => clearInterval(iv);
+  }, []);
+
+  const iz = YOL.slice(0, adim);
+  const tamam = adim >= YOL.length;
+
+  return (
+    <div className="mx-auto w-full max-w-md no-select">
+      <h2 className="mb-1 text-center text-xl font-black text-slate-800">
+        Nasıl oynanır?
+      </h2>
+      <p className="mb-4 text-center text-sm font-bold text-slate-500">
+        Parmağını sürükle
+      </p>
+
+      <div className="mx-auto w-full max-w-[260px]">
+        <div className="relative aspect-square w-full overflow-hidden rounded-2xl
+                        border-4 border-slate-300 bg-white"
+             style={{ display: 'grid',
+                      gridTemplateColumns: `repeat(${N}, 1fr)`,
+                      gridTemplateRows: `repeat(${N}, 1fr)` }}>
+          <svg className="pointer-events-none absolute inset-0 z-[2] h-full w-full"
+               viewBox={`0 0 ${N} ${N}`}>
+            {iz.length > 1 && (
+              <polyline
+                points={iz.map((i) =>
+                  `${(i % N) + 0.5},${Math.floor(i / N) + 0.5}`).join(' ')}
+                fill="none"
+                stroke={tamam ? '#10b981' : '#3b82f6'}
+                strokeOpacity="0.5" strokeWidth={0.34}
+                strokeLinecap="round" strokeLinejoin="round" />
+            )}
+          </svg>
+
+          {Array.from({ length: N * N }, (_, i) => {
+            const sayi = NOKTA[i];
+            const izde = iz.includes(i);
+            const uc = iz[iz.length - 1] === i;
+            return (
+              <div key={i}
+                   className={`relative ${
+                     (i % N) < N - 1 ? 'border-r-2 border-r-slate-300' : ''} ${
+                     Math.floor(i / N) < N - 1 ? 'border-b-2 border-b-slate-300' : ''}`}>
+                {izde && (
+                  <div className={`absolute inset-[22%] rounded-md ${
+                    tamam ? 'bg-mint-400/20' : 'bg-brand-400/15'}`} />
+                )}
+                {sayi && (
+                  <div className={`absolute inset-[18%] z-[3] grid place-items-center
+                                   rounded-full text-lg font-black transition ${
+                    izde ? (tamam ? 'bg-mint-500 text-white' : 'bg-brand-500 text-white')
+                         : 'bg-slate-800 text-white'}`}>
+                    {sayi}
+                  </div>
+                )}
+                {/* Parmak ucu */}
+                {uc && !sayi && (
+                  <div className="absolute inset-[34%] z-[3] rounded-full bg-brand-600
+                                  ring-4 ring-brand-200" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-2">
+        {[
+          ['1️⃣', 'Sayıları sırayla birleştir'],
+          ['🔲', 'Her kareden bir kez geç'],
+          ['✏️', 'Çizgi tek parça olmalı'],
+        ].map(([ik, metin]) => (
+          <div key={metin} className="flex items-center gap-3 rounded-xl
+                                       bg-slate-50 px-4 py-2.5">
+            <span className="text-lg">{ik}</span>
+            <span className="text-sm font-extrabold text-slate-600">{metin}</span>
+          </div>
+        ))}
+      </div>
+
+      <button onClick={onBasla} className="btn-primary mt-5 w-full text-lg">
+        Anladım, başlayalım
+      </button>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Bilesen
 
 export default function TekCizgi({ onLevel }: { onLevel?: (n: number) => void }) {
+  // Tanitim sadece ILK bolumde ve sadece bir kez gosterilir.
+  // Cocuk molada oyunu her actiginda tekrar gormemeli.
+  const [tanitim, setTanitim] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try { return localStorage.getItem('mz_tekcizgi_gordu') !== '1'; }
+    catch { return true; }
+  });
   const [bolum, setBolum] = useState(1);
   const [level, setLevel] = useState<Level | null>(null);
   const [path, setPath] = useState<number[]>([]);
@@ -202,6 +314,13 @@ export default function TekCizgi({ onLevel }: { onLevel?: (n: number) => void })
     setMesaj('');
   };
 
+  if (tanitim) {
+    return <NasilOynanir onBasla={() => {
+      try { localStorage.setItem('mz_tekcizgi_gordu', '1'); } catch { /* ignore */ }
+      setTanitim(false);
+    }} />;
+  }
+
   if (!level) {
     return (
       <div className="grid h-72 place-items-center">
@@ -215,6 +334,27 @@ export default function TekCizgi({ onLevel }: { onLevel?: (n: number) => void })
 
   return (
     <div className="mx-auto w-full max-w-md no-select">
+      {/* Basari bildirimi: tahtanin ustunde, cocugun bakisinin
+          dogal olarak dustugu yerde. Alttaki butona gore daha gorunur. */}
+      {kazandi && (
+        <div className="mb-3 flex items-center gap-3 rounded-2xl border-2
+                        border-mint-400 bg-mint-400/15 px-4 py-3 animate-pop">
+          <span className="text-3xl">🎉</span>
+          <div className="flex-1">
+            <p className="font-black text-mint-600">Başardın!</p>
+            <p className="text-xs font-bold text-slate-500">
+              Bölüm {bolum} tamamlandı
+            </p>
+          </div>
+          <button onClick={() => { const y = bolum + 1; setBolum(y); yukle(y); }}
+                  className="shrink-0 whitespace-nowrap rounded-xl bg-mint-500
+                             px-4 py-2.5 text-sm font-black text-white
+                             transition hover:bg-mint-600">
+            Sonraki →
+          </button>
+        </div>
+      )}
+
       <div className="mb-3 flex items-center justify-between">
         <span className="text-sm font-black text-slate-500">
           Bölüm {bolum} · {n}×{n}
@@ -304,13 +444,10 @@ export default function TekCizgi({ onLevel }: { onLevel?: (n: number) => void })
         <button onClick={() => yukle(bolum)} className="btn-ghost text-sm">
           Baştan
         </button>
-        {kazandi ? (
-          <button onClick={() => { const y = bolum + 1; setBolum(y); yukle(y); }}
-                  className="btn-mint text-sm">Sonraki →</button>
-        ) : (
-          <button onClick={() => { const y = bolum + 1; setBolum(y); yukle(y); }}
-                  className="btn-ghost text-sm">Yeni bölüm</button>
-        )}
+        <button onClick={() => { const y = bolum + 1; setBolum(y); yukle(y); }}
+                className={kazandi ? 'btn-mint text-sm' : 'btn-ghost text-sm'}>
+          {kazandi ? 'Sonraki →' : 'Yeni bölüm'}
+        </button>
       </div>
     </div>
   );
