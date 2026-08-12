@@ -196,10 +196,19 @@ export default function QuestionPlayer({
             else if (idx === selected) cls += ' opt-wrong';
             else cls += ' opt-muted';
           } else if (selected === idx) {
-            cls += ' border-brand-400';
+            cls += ' opt-secili';
           }
           return (
-            <button key={idx} onClick={() => send(idx)} disabled={!!result || busy}
+            // key'e soru numarasi dahil: soru degisince React butonu
+            // YENIDEN olusturur. Sadece idx kullanilirsa ayni DOM elemani
+            // korunur ve tiklanan butonun odagi (mavi focus cercevesi)
+            // sonraki soruda ayni siradaki sikta gorunur.
+            <button key={`${i}-${idx}`} onClick={(e) => {
+                      // Dokunmatik cihazda buton odakta kalmasin
+                      (e.currentTarget as HTMLButtonElement).blur();
+                      send(idx);
+                    }}
+                    disabled={!!result || busy}
                     className={cls}>
               {opt}
             </button>

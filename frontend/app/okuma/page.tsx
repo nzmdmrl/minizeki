@@ -356,7 +356,12 @@ function SoruEkrani({ metin, sorular, onBitir, onCik }: any) {
             k += ' opt-secili';
           }
           return (
-            <button key={idx} onClick={() => sec(idx)}
+            // key'e soru numarasi dahil - odak sonraki soruya tasinmasin
+            <button key={`${i}-${idx}`}
+                    onClick={(e) => {
+                      (e.currentTarget as HTMLButtonElement).blur();
+                      sec(idx);
+                    }}
                     disabled={cevaplandi || bekle} className={k}>
               {o}
             </button>
