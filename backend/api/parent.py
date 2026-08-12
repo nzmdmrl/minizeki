@@ -166,6 +166,14 @@ def dashboard(profile_id: str, acc: Account = Depends(require_pin),
             "daily_limit_min": p.daily_limit_min,
             "focus_category_id": p.focus_category_id,
             "focus_until": str(p.focus_until) if p.focus_until else None,
+            # Mola ayarlari — panel bu degerleri okuyup butonlari isaretler.
+            # Eksik olursa panel her zaman varsayilani gosterir ve
+            # tiklamalar etkisiz gorunur.
+            "break_mode": mola.get("mode", "earned"),
+            "break_enabled": mola.get("enabled", True),
+            "study_minutes": p.study_minutes or 30,
+            "break_minutes": p.break_minutes or 15,
+            "break_daily_limit": p.break_daily_limit if p.break_daily_limit is not None else 30,
         },
     }
 
@@ -292,9 +300,9 @@ def _mola_ozeti(db: Session, p: Profile) -> dict:
     Calisma suresi AnswerLog zaman damgalarindan tahmin edilir
     (bkz. api/break_time.py). Ayri bir sayac istegi gonderilmez.
     """
-    from api.break_time import calisma_saniyesi, mola_saniyesi
+    from api.break_time import (calisma_saniyesi, mola_saniyesi,
+                                aktif_mod, OYUNLAR)
     from models import BreakSession
-    from datetime import date as _date
 
     bugun = _mola_gun(db, p, None)
 
@@ -307,13 +315,41 @@ def _mola_ozeti(db: Session, p: Profile) -> dict:
     toplam_mola = db.query(func.count(BreakSession.id)).filter(
         BreakSession.profile_id == p.id).scalar() or 0
 
+    # --- Oyun bazli sure dagilimi (son 30 gun) ---
+    # Hangi oyunda ne kadar vakit gecirdigi ebeveyn icin en merak edilen
+    # bilgi. game_id her mola oturumunda kayitli.
+    oyun_adlari = {o["id"]: (o["name"], o["icon"]) for o in OYUNLAR}
+    kesim = datetime.utcnow() - timedelta(days=30)
+    satirlar = (db.query(BreakSession.game_id,
+                         func.sum(BreakSession.duration_seconds),
+                         func.count(BreakSession.id),
+                         func.max(BreakSession.level_reached))
+                .filter(BreakSession.profile_id == p.id,
+                        BreakSession.started_at > kesim)
+                .group_by(BreakSession.game_id).all())
+
+    oyunlar = []
+    for gid, sure, adet, seviye in satirlar:
+        ad, ikon = oyun_adlari.get(gid, (gid or "Oyun", "🎮"))
+        oyunlar.append({
+            "id": gid, "name": ad, "icon": ikon,
+            "minutes": round((sure or 0) / 60),
+            "sessions": adet or 0,
+            "best_level": seviye or 0,
+        })
+    oyunlar.sort(key=lambda x: -x["minutes"])
+
+    mod = aktif_mod(p)
     return {
-        "enabled": bool(p.break_enabled),
+        "enabled": mod != "off",
+        "mode": mod,
         "study_minutes": p.study_minutes or 30,
         "break_minutes": p.break_minutes or 15,
+        "daily_limit": p.break_daily_limit or 0,
         "today": bugun,
         "history": gecmis,
         "total_sessions": toplam_mola,
+        "games": oyunlar,
     }
 
 
@@ -342,8 +378,12 @@ class SettingsIn(BaseModel):
     # mola isteyip calismaya donmez.
     # break_minutes ust siniri 30: mola dinlenme icindir, oyun seansi degil.
     break_enabled: bool | None = None
+    # "off" | "earned" (calisinca hak kazanir) | "free" (istedigi zaman)
+    break_mode: str | None = None
     study_minutes: int | None = Field(default=None, ge=10, le=120)
     break_minutes: int | None = Field(default=None, ge=5, le=30)
+    # Serbest modda gunluk tavan (dakika). 0 = sinirsiz.
+    break_daily_limit: int | None = Field(default=None, ge=0, le=180)
 
 
 @router.put("/settings")
@@ -362,6 +402,12 @@ def update_settings(profile_id: str, body: SettingsIn,
         p.daily_limit_min = body.daily_limit_min
     if body.break_enabled is not None:
         p.break_enabled = body.break_enabled
+    if body.break_mode is not None and body.break_mode in ("off", "earned", "free"):
+        p.break_mode = body.break_mode
+        # Eski break_enabled alanini da tutarli tut
+        p.break_enabled = body.break_mode != "off"
+    if body.break_daily_limit is not None:
+        p.break_daily_limit = body.break_daily_limit
     if body.study_minutes is not None:
         p.study_minutes = body.study_minutes
     if body.break_minutes is not None:

@@ -378,6 +378,46 @@ def main():
                 "profile_id": pid, "session_id": _sid, "level_reached": 2})
             check("mola bitiriliyor", re_.status_code == 200)
 
+    # Panel ayar alanlari: bunlar eksikse panelde butonlar tepkisiz gorunur
+    rset = c.get(f"/api/parent/dashboard?profile_id={pid}", headers=PH)
+    if rset.status_code == 200:
+        _s = rset.json().get("settings", {})
+        _eksik = [k for k in ("break_mode", "study_minutes", "break_minutes",
+                              "break_daily_limit") if k not in _s]
+        check(f"panelde mola ayarlari var ({len(_eksik)} eksik)", not _eksik)
+
+    # --- Serbest mod ---
+    # Cocuk calisma sarti olmadan mola yapabilir; sadece gunluk tavan gecerli.
+    c.put(f"/api/parent/settings?profile_id={pid}", headers=PH,
+          json={"break_mode": "free", "break_daily_limit": 20,
+                "break_minutes": 10})
+    rf = c.get(f"/api/break/status?profile_id={pid}", headers=H)
+    if rf.status_code == 200:
+        fd = rf.json()
+        check("serbest mod aktif", fd.get("mode") == "free")
+        check("serbest modda gunluk tavan bildiriliyor",
+              fd.get("daily_limit") == 20)
+
+    # Moda geri don ve panelde oyun raporu kontrol et
+    c.put(f"/api/parent/settings?profile_id={pid}", headers=PH,
+          json={"break_mode": "earned"})
+    rp0 = c.get(f"/api/parent/dashboard?profile_id={pid}", headers=PH)
+    if rp0.status_code == 200 and "break" in rp0.json():
+        _b = rp0.json()["break"]
+        check("panelde oyun bazli rapor var", "games" in _b)
+        check("mod bilgisi panelde", _b.get("mode") == "earned")
+
+    # Mola kapatilinca cocuk erisemez
+    c.put(f"/api/parent/settings?profile_id={pid}", headers=PH,
+          json={"break_mode": "off"})
+    rk = c.get(f"/api/break/status?profile_id={pid}", headers=H)
+    check("kapali modda mola gorunmuyor",
+          rk.status_code == 200 and rk.json().get("enabled") is False)
+    rk2 = c.post("/api/break/start", headers=H, json={"profile_id": pid})
+    check("kapaliyken mola baslatilamiyor", rk2.status_code == 403)
+    c.put(f"/api/parent/settings?profile_id={pid}", headers=PH,
+          json={"break_mode": "earned"})
+
     # Ebeveyn panelinde mola ozeti
     rp = c.get(f"/api/parent/dashboard?profile_id={pid}", headers=PH)
     if rp.status_code == 200:
