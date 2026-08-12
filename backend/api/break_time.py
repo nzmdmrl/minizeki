@@ -119,6 +119,46 @@ def mola_saniyesi(db: Session, profile_id: str,
              BreakSession.started_at < son).scalar() or 0)
 
 
+def _acik_molayi_duzelt(db: Session, p, mola_hakki: int):
+    """
+    Acik kalmis mola oturumlarini toparlar.
+
+    Cocuk tablette ekran koruyucuya duserse veya sekme kapanirsa
+    "mola bitti" bildirimi sunucuya ULASMAYABILIR. O zaman oturum
+    acik kalir ve cocuk geri donunce yeni mola baslatamaz.
+
+    Kural:
+      - Suresi dolmus acik oturum -> kapatilir (sure hakla sinirli)
+      - Suresi devam eden oturum  -> DOKUNULMAZ, cocuk devam eder
+      - Onceki gunlerden kalan    -> kapatilir
+    """
+    simdi = datetime.utcnow()
+    bugun_bas, _ = _gun_araligi()
+
+    acik_liste = (db.query(BreakSession)
+                  .filter(BreakSession.profile_id == p.id,
+                          BreakSession.ended_at.is_(None))
+                  .order_by(desc(BreakSession.started_at)).all())
+
+    guncel = None
+    degisti = False
+    for o in acik_liste:
+        gecen = int((simdi - o.started_at).total_seconds())
+        eski_gun = o.started_at < bugun_bas
+        if eski_gun or gecen >= mola_hakki or guncel is not None:
+            # Kapat: sure hakla sinirlanir, boylece acik unutulan
+            # oturum gunluk toplami sisirmez.
+            o.ended_at = simdi
+            o.duration_seconds = max(0, min(gecen, mola_hakki))
+            degisti = True
+        else:
+            guncel = o
+
+    if degisti:
+        db.commit()
+    return guncel
+
+
 # ---------------------------------------------------------------- DURUM
 
 @router.get("/status")
@@ -131,14 +171,15 @@ def status(profile_id: str, acc: Account = Depends(get_current_account),
     if mod == "off":
         return {"enabled": False, "mode": "off"}
 
-    calisma = calisma_saniyesi(db, p.id)
-    kullanilan = mola_saniyesi(db, p.id)
     mola_hakki = (p.break_minutes or 15) * 60
 
-    acik = (db.query(BreakSession)
-            .filter(BreakSession.profile_id == p.id,
-                    BreakSession.ended_at.is_(None))
-            .order_by(desc(BreakSession.started_at)).first())
+    # ONCE acik molalari toparla, SONRA sureleri hesapla.
+    # Ters sirada yapilirsa kapatilan oturumun suresi gunluk
+    # toplama yansimaz ve cocuk hakkindan fazla mola yapabilir.
+    acik = _acik_molayi_duzelt(db, p, mola_hakki)
+
+    calisma = calisma_saniyesi(db, p.id)
+    kullanilan = mola_saniyesi(db, p.id)
 
     ortak = {
         "enabled": True,
@@ -156,11 +197,14 @@ def status(profile_id: str, acc: Account = Depends(get_current_account),
         # Serbest mod: calisma sarti yok, sadece gunluk tavan.
         tavan = (p.break_daily_limit or 0) * 60      # 0 = sinirsiz
         kalan_gun = (max(0, tavan - kullanilan) if tavan else mola_hakki)
-        # Tek seferde en fazla bir mola suresi kadar
         kalan = min(kalan_gun, mola_hakki) if tavan else mola_hakki
+        if acik:
+            # Devam eden mola: kalan sure baslangictan hesaplanir
+            gecen = int((datetime.utcnow() - acik.started_at).total_seconds())
+            kalan = max(0, min(kalan, mola_hakki) - gecen)
         return {
             **ortak,
-            "can_start": kalan > 0 and acik is None,
+            "can_start": kalan > 0,
             "remaining_seconds": kalan,
             "daily_limit": p.break_daily_limit or 0,
             "daily_left": kalan_gun,
@@ -170,9 +214,12 @@ def status(profile_id: str, acc: Account = Depends(get_current_account),
     gerekli = (p.study_minutes or 30) * 60
     dilim = calisma // gerekli if gerekli > 0 else 0
     kalan = max(0, dilim * mola_hakki - kullanilan)
+    if acik:
+        gecen = int((datetime.utcnow() - acik.started_at).total_seconds())
+        kalan = max(0, min(kalan + gecen, mola_hakki) - gecen)
     return {
         **ortak,
-        "can_start": kalan > 0 and acik is None,
+        "can_start": kalan > 0,
         "remaining_seconds": kalan,
         "study_required": gerekli,
         "next_break_in": max(0, gerekli - (calisma % gerekli)) if gerekli else 0,
@@ -196,8 +243,9 @@ def start(body: BaslatIn, acc: Account = Depends(get_current_account),
     if mod == "off":
         raise HTTPException(403, "Mola özelliği kapalı")
 
-    kullanilan = mola_saniyesi(db, p.id)
     mola_hakki = (p.break_minutes or 15) * 60
+    acik = _acik_molayi_duzelt(db, p, mola_hakki)
+    kullanilan = mola_saniyesi(db, p.id)
 
     if mod == "free":
         tavan = (p.break_daily_limit or 0) * 60
@@ -217,10 +265,6 @@ def start(body: BaslatIn, acc: Account = Depends(get_current_account),
     # Cocuk sayfayi yenilerse veya sekmeye geri donerse molasi
     # sifirlanmamali. Yeni oturum acmak yerine mevcut olan dondurulur;
     # kalan sure basladigi andan itibaren hesaplanir.
-    acik = (db.query(BreakSession)
-            .filter(BreakSession.profile_id == p.id,
-                    BreakSession.ended_at.is_(None))
-            .order_by(desc(BreakSession.started_at)).first())
     if acik:
         gecen = int((datetime.utcnow() - acik.started_at).total_seconds())
         kalan_sure = max(0, min(kalan, mola_hakki) - gecen)

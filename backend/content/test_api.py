@@ -386,6 +386,41 @@ def main():
                               "break_daily_limit") if k not in _s]
         check(f"panelde mola ayarlari var ({len(_eksik)} eksik)", not _eksik)
 
+    # Ekran koruyucu / sekme degisimi senaryosu:
+    # Mola acik kalirsa cocuk geri donunce DEVAM edebilmeli.
+    # Bug: "Bugunluk mola bitti" diyordu.
+    from models import BreakSession as _BS
+    c.put(f"/api/parent/settings?profile_id={pid}", headers=PH,
+          json={"break_mode": "free", "break_daily_limit": 0,
+                "break_minutes": 20})
+    _rs = c.post("/api/break/start", headers=H, json={"profile_id": pid})
+    if _rs.status_code == 200:
+        _sid2 = _rs.json()["id"]
+        _db = _SL()
+        _o = _db.get(_BS, _sid2)
+        _o.started_at = _dt.utcnow() - _td(minutes=1)   # 1 dk gecti
+        _db.commit(); _db.close()
+        _st = c.get(f"/api/break/status?profile_id={pid}", headers=H).json()
+        check("ekran koruyucu sonrasi mola devam ediyor",
+              _st.get("can_start") is True)
+        check("acik mola bildiriliyor", _st.get("active") is not None)
+        _kalan = _st.get("remaining_seconds", 0) // 60
+        check(f"kalan sure dogru ({_kalan} dk, 19 bekleniyor)",
+              18 <= _kalan <= 19)
+
+        # Suresi dolmus acik oturum otomatik kapanmali
+        _db = _SL()
+        _o = _db.get(_BS, _sid2)
+        _o.started_at = _dt.utcnow() - _td(minutes=25)  # hak 20 dk
+        _db.commit(); _db.close()
+        _st2 = c.get(f"/api/break/status?profile_id={pid}", headers=H).json()
+        check("suresi dolan oturum kapatiliyor",
+              _st2.get("active") is None)
+        check(f"sure hakla sinirli ({_st2.get('used_today', 0) // 60} dk)",
+              _st2.get("used_today", 0) <= 20 * 60)
+        check("sinirsiz modda yeni mola alinabiliyor",
+              _st2.get("can_start") is True)
+
     # --- Serbest mod ---
     # Cocuk calisma sarti olmadan mola yapabilir; sadece gunluk tavan gecerli.
     c.put(f"/api/parent/settings?profile_id={pid}", headers=PH,

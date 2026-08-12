@@ -60,6 +60,18 @@ export default function MolaPage() {
 
   useEffect(() => { yukle(); }, [yukle]);
 
+  // Acik mola varsa dogrudan oyuna don.
+  // Tablet ekran koruyucuya duserse veya sekme arka plana alinirsa
+  // oturum acik kalir; cocuk geri geldiginde molasi kaldigi yerden
+  // surmelidir. Onceki surumde "Bugunluk mola bitti" yaziyordu.
+  useEffect(() => {
+    if (!durum?.active || oturumId || bitti) return;
+    if ((durum.remaining_seconds || 0) <= 0) return;
+    setOturumId(durum.active.id);
+    setKalan(durum.remaining_seconds || 0);
+    kapandiRef.current = false;
+  }, [durum, oturumId, bitti]);
+
   // Molayi bitir. Birden fazla kez cagrilabilir; ilk cagri gecerli.
   const bitirGercek = useCallback(async (yonlendir: boolean) => {
     if (kapandiRef.current || !oturumId || !pid) return;
@@ -87,24 +99,14 @@ export default function MolaPage() {
     return () => clearInterval(iv);
   }, [oturumId, kalan, bitirGercek]);
 
-  // Sekme kapanirsa molayi bitir (sure sismesin)
-  useEffect(() => {
-    if (!oturumId || !pid) return;
-    const kapat = () => {
-      if (kapandiRef.current) return;
-      kapandiRef.current = true;
-      // sendBeacon: sayfa kapanirken de gider
-      const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/break/end`;
-      const veri = JSON.stringify({
-        profile_id: pid, session_id: oturumId, level_reached: bolumRef.current,
-      });
-      try {
-        navigator.sendBeacon?.(url, new Blob([veri], { type: 'application/json' }));
-      } catch { /* ignore */ }
-    };
-    window.addEventListener('pagehide', kapat);
-    return () => window.removeEventListener('pagehide', kapat);
-  }, [oturumId, pid]);
+  // NOT: Sayfa gizlenince molayi BITIRMIYORUZ.
+  // Ekran koruyucu, sekme degistirme veya telefon kilidi de "pagehide"
+  // tetikler. Molayi kapatirsak cocuk geri geldiginde molasi bitmis olur.
+  //
+  // Bunun yerine oturum acik birakilir; sunucu tarafinda:
+  //   - suresi dolan oturum otomatik kapatilir
+  //   - sure her zaman mola hakkiyla sinirlidir (sure sismez)
+  //   - cocuk geri gelirse kaldigi yerden devam eder
 
   const basla = async () => {
     if (!pid) return;
@@ -205,14 +207,19 @@ function HazirEkrani({ d, onBasla }: { d: Durum; onBasla: () => void }) {
           </button>
         </div>
       ) : serbest ? (
-        // Serbest modda mola hakki yoksa tek sebep gunluk tavan dolmus olmasi
+        // Serbest modda mola hakki yoksa tek sebep gunluk tavan dolmus olmasi.
+        // Sinirsiz ayarda bu ekran hic gorunmemelidir.
         <div className="card p-6 text-center">
           <p className="text-lg font-black text-slate-700">
-            Bugünlük mola bitti
+            {(d.daily_limit || 0) > 0
+              ? 'Bugünlük mola bitti'
+              : 'Şu an mola yapılamıyor'}
           </p>
           <p className="mt-1 font-bold text-slate-500">
-            Bugün {Math.round((d.used_today || 0) / 60)} dakika mola yaptın.
-            Yarın yeniden başlıyor.
+            {(d.daily_limit || 0) > 0
+              ? `Bugün ${Math.round((d.used_today || 0) / 60)} dakika mola yaptın.
+                 Yarın yeniden başlıyor.`
+              : 'Biraz sonra tekrar dene.'}
           </p>
           <Link href="/gorev" className="btn-primary mt-5 w-full text-lg">
             Günlük göreve git
