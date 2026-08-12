@@ -233,6 +233,28 @@ export default function TekCizgi({ onLevel }: { onLevel?: (n: number) => void })
            style={{ display: 'grid',
                     gridTemplateColumns: `repeat(${n}, 1fr)`,
                     gridTemplateRows: `repeat(${n}, 1fr)` }}>
+        {/* Cizilen iz: karelerin merkezlerini birlestiren tek cizgi.
+            Oyunun asil geri bildirimi budur — cocuk nereden gectigini
+            gorebilmeli. Karelerin arka plan rengi tek basina yetmez. */}
+        {/* Tahta kare oldugu icin viewBox birim = hucre.
+            strokeWidth 0.34 -> cizgi hucre genisliginin ucte biri kadar;
+            tahta buyudukce cizgi de oransal buyur. */}
+        <svg className="pointer-events-none absolute inset-0 z-[2] h-full w-full"
+             viewBox={`0 0 ${n} ${n}`}>
+          {path.length > 1 && (
+            <polyline
+              points={path.map((i) =>
+                `${(i % n) + 0.5},${Math.floor(i / n) + 0.5}`).join(' ')}
+              fill="none"
+              stroke={kazandi ? '#10b981' : '#3b82f6'}
+              strokeOpacity="0.5"
+              strokeWidth={0.34}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+        </svg>
+
         {Array.from({ length: n * n }, (_, i) => {
           const sayi = level.checkpoints[i];
           const izde = path.includes(i);
@@ -240,11 +262,11 @@ export default function TekCizgi({ onLevel }: { onLevel?: (n: number) => void })
           return (
             <div key={i} className="relative border-b border-r border-slate-100">
               {izde && (
-                <div className={`absolute inset-[14%] rounded-lg ${
-                  kazandi ? 'bg-mint-400/30' : 'bg-brand-400/25'}`} />
+                <div className={`absolute inset-[22%] rounded-md ${
+                  kazandi ? 'bg-mint-400/20' : 'bg-brand-400/15'}`} />
               )}
               {sayi && (
-                <div className={`absolute inset-[18%] z-10 grid place-items-center
+                <div className={`absolute inset-[18%] z-[3] grid place-items-center
                                  rounded-full text-lg font-black transition
                   ${izde
                     ? (kazandi ? 'bg-mint-500 text-white' : 'bg-brand-500 text-white')
@@ -254,7 +276,8 @@ export default function TekCizgi({ onLevel }: { onLevel?: (n: number) => void })
                 </div>
               )}
               {sonKare && !sayi && (
-                <div className="absolute inset-[32%] z-10 rounded-full bg-brand-500" />
+                <div className="absolute inset-[34%] z-[3] rounded-full bg-brand-600
+                                ring-4 ring-brand-200" />
               )}
             </div>
           );
