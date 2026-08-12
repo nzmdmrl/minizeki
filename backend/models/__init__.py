@@ -55,6 +55,13 @@ class Profile(Base):
     })
     daily_limit_min = Column(Integer, default=30)
 
+    # --- Mola ayarlari ---
+    # Cocuk belli sure calisinca mola hakki kazanir. Ebeveyn bu sureleri
+    # panelden ayarlar. break_enabled=False ise mola bolumu hic gorunmez.
+    break_enabled = Column(Boolean, default=True)
+    study_minutes = Column(Integer, default=30)   # kac dk calisinca mola hakki
+    break_minutes = Column(Integer, default=15)   # mola ne kadar surer
+
     # Odak modu
     focus_category_id = Column(String(50))
     focus_until = Column(Date)
@@ -315,6 +322,37 @@ class ReadingSession(Base):
 
 
 Index("idx_reading_profile", ReadingSession.profile_id, ReadingSession.created_at)
+
+
+# ============ MOLA ============
+
+class BreakSession(Base):
+    """
+    Bir mola turu.
+
+    Cocuk yeterince calistiktan sonra mola hakki kazanir. Mola suresince
+    oyun oynayabilir. Ebeveyn panelde gunluk mola suresini gorur.
+
+    NOT: Mola bir odul degil, dinlenme hakkidir. Bu yuzden mola suresi
+    "kazanilan" degil "hak edilen" olarak sunulur ve cocuk molayi
+    kullanmazsa bir sey kaybetmez.
+    """
+    __tablename__ = "break_session"
+
+    id = Column(String(36), primary_key=True, default=uid)
+    profile_id = Column(String(36), ForeignKey("profile.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    game_id = Column(String(40), default="tek_cizgi")
+
+    started_at = Column(DateTime, default=datetime.utcnow, index=True)
+    ended_at = Column(DateTime)
+    duration_seconds = Column(Integer, default=0)
+
+    # Oyunda ulasilan bolum (istatistik icin)
+    level_reached = Column(Integer, default=0)
+
+
+Index("idx_break_profile", BreakSession.profile_id, BreakSession.started_at)
 
 
 # ============ ADMIN ============

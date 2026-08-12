@@ -93,6 +93,22 @@ KONTROLLER = [
      "Account.is_admin alani"),
     ("models/migrate.py", "semayi_guncelle",
      "Sema guncelleme fonksiyonu"),
+
+    # --- Mola ---
+    ("api/break_time.py", "calisma_saniyesi",
+     "Calisma suresi olcumu"),
+    ("api/break_time.py", "resumed",
+     "Acik molaya devam (sayfa yenileme)"),
+    ("main.py", "break_time.router",
+     "Mola router'i bagli"),
+    ("models/__init__.py", "class BreakSession",
+     "Mola oturumu modeli"),
+    ("models/__init__.py", "break_enabled",
+     "Profile mola ayarlari"),
+    ("api/parent.py", "_mola_ozeti",
+     "Ebeveyn panelinde mola raporu"),
+    ("api/parent.py", "study_minutes: int | None",
+     "Mola ayarlari degistirilebiliyor"),
 ]
 
 

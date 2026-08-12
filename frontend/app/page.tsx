@@ -6,6 +6,43 @@ import Link from 'next/link';
 import { api, token, activeProfile, Profile, AVATARS } from '@/lib/api';
 import { Zeki, Stat, Spinner } from '@/components/Zeki';
 
+function MolaKarti() {
+  const [d, setD] = useState<any>(null);
+
+  useEffect(() => {
+    const pid = activeProfile.get();
+    if (!pid) return;
+    api.breakStatus(pid).then(setD).catch(() => {});
+  }, []);
+
+  // Ebeveyn kapattiysa kart hic gorunmez
+  if (!d?.enabled) return null;
+
+  const hazir = d.can_start;
+  const kalanDk = Math.round((d.remaining_seconds || 0) / 60);
+
+  return (
+    <Link href="/mola"
+          className={`card mt-3 flex items-center gap-3 p-4 transition
+                      hover:-translate-y-0.5 ${
+            hazir ? 'border-mint-400 bg-mint-400/10' : ''}`}>
+      <span className="text-3xl">{hazir ? '🎮' : '⏳'}</span>
+      <div className="flex-1 text-left">
+        <p className="font-black">Mola</p>
+        <p className="text-xs font-bold text-slate-400">
+          {hazir
+            ? `${kalanDk} dakika oyun hakkın var`
+            : `${Math.round((d.next_break_in || 0) / 60)} dakika daha çalış`}
+        </p>
+      </div>
+      {hazir && (
+        <span className="rounded-full bg-mint-500 px-2.5 py-1 text-xs
+                         font-black text-white">Hazır</span>
+      )}
+    </Link>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
@@ -155,6 +192,9 @@ export default function HomePage() {
           </div>
         </Link>
       </div>
+
+      {/* Mola: sadece ebeveyn actiysa ve hak varsa vurgulu gorunur */}
+      <MolaKarti />
 
       <div className="mt-6 text-center">
         <Link href="/ebeveyn" className="text-sm font-extrabold text-slate-300

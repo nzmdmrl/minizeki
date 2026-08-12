@@ -129,8 +129,12 @@ def dashboard(profile_id: str, acc: Account = Depends(require_pin),
     # --- Okuma ve anlama ---
     okuma = _okuma_ozeti(db, p)
 
+    # --- Mola ---
+    mola = _mola_ozeti(db, p)
+
     return {
         "reading": okuma,
+        "break": mola,
         "profile": {
             "id": p.id, "name": p.name, "grade": p.grade,
             "avatar_id": p.avatar_id, "streak": p.streak_days,
@@ -281,12 +285,65 @@ def _okuma_ozeti(db: Session, p: Profile) -> dict:
     }
 
 
+def _mola_ozeti(db: Session, p: Profile) -> dict:
+    """
+    Gunluk calisma ve mola sureleri.
+
+    Calisma suresi AnswerLog zaman damgalarindan tahmin edilir
+    (bkz. api/break_time.py). Ayri bir sayac istegi gonderilmez.
+    """
+    from api.break_time import calisma_saniyesi, mola_saniyesi
+    from models import BreakSession
+    from datetime import date as _date
+
+    bugun = _mola_gun(db, p, None)
+
+    # Son 7 gun
+    gecmis = []
+    for i in range(6, -1, -1):
+        g = datetime.utcnow().date() - timedelta(days=i)
+        gecmis.append(_mola_gun(db, p, g))
+
+    toplam_mola = db.query(func.count(BreakSession.id)).filter(
+        BreakSession.profile_id == p.id).scalar() or 0
+
+    return {
+        "enabled": bool(p.break_enabled),
+        "study_minutes": p.study_minutes or 30,
+        "break_minutes": p.break_minutes or 15,
+        "today": bugun,
+        "history": gecmis,
+        "total_sessions": toplam_mola,
+    }
+
+
+def _mola_gun(db: Session, p: Profile, gun) -> dict:
+    from api.break_time import calisma_saniyesi, mola_saniyesi
+    from datetime import date as _date
+    g = gun or datetime.utcnow().date()
+    calisma = calisma_saniyesi(db, p.id, g)
+    mola = mola_saniyesi(db, p.id, g)
+    return {
+        "date": str(g),
+        "study_min": round(calisma / 60),
+        "break_min": round(mola / 60),
+    }
+
+
 class SettingsIn(BaseModel):
     grade: int | None = Field(default=None, ge=1, le=4)
     repeat_ratio: float | None = Field(default=None, ge=0.05, le=0.40)
     allow_advance: bool | None = None
     daily_limit_min: int | None = Field(default=None, ge=5, le=180)
     subject_weights: dict[str, float] | None = None
+
+    # --- Mola ayarlari ---
+    # study_minutes alt siniri 10: daha kisa olursa cocuk surekli
+    # mola isteyip calismaya donmez.
+    # break_minutes ust siniri 30: mola dinlenme icindir, oyun seansi degil.
+    break_enabled: bool | None = None
+    study_minutes: int | None = Field(default=None, ge=10, le=120)
+    break_minutes: int | None = Field(default=None, ge=5, le=30)
 
 
 @router.put("/settings")
@@ -303,6 +360,12 @@ def update_settings(profile_id: str, body: SettingsIn,
         p.allow_advance = body.allow_advance
     if body.daily_limit_min is not None:
         p.daily_limit_min = body.daily_limit_min
+    if body.break_enabled is not None:
+        p.break_enabled = body.break_enabled
+    if body.study_minutes is not None:
+        p.study_minutes = body.study_minutes
+    if body.break_minutes is not None:
+        p.break_minutes = body.break_minutes
     if body.subject_weights is not None:
         temiz = {k: v for k, v in body.subject_weights.items()
                  if v in (0.5, 1.0, 1.5)}

@@ -216,6 +216,17 @@ export const api = {
 
   me: () => get<{ id: string; email: string; plan: string }>('/api/auth/me'),
 
+  // --- Mola ---
+  breakStatus: (profileId: string) =>
+    get<any>(`/api/break/status?profile_id=${profileId}`),
+  breakStart: (profileId: string, gameId = 'tek_cizgi') =>
+    post<{ id: string; seconds: number; started_at: string }>(
+      '/api/break/start', { profile_id: profileId, game_id: gameId }),
+  breakEnd: (profileId: string, sessionId: string, level = 0) =>
+    post<{ duration_seconds: number; used_today: number }>(
+      '/api/break/end',
+      { profile_id: profileId, session_id: sessionId, level_reached: level }),
+
   verifyPin: (pin: string) =>
     post<{ pin_token: string }>('/api/auth/verify-pin', { pin }),
 

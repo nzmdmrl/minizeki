@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 import config as cfg
 from models import init_db
-from api import auth, profile, play, parent, house, admin, reading
+from api import auth, profile, play, parent, house, admin, reading, break_time
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(message)s")
@@ -33,6 +33,7 @@ app.include_router(parent.router)
 app.include_router(house.router)
 app.include_router(admin.router)
 app.include_router(reading.router)
+app.include_router(break_time.router)
 
 
 # Reverse proxy'ler (Traefik, nginx) /api onekini keserek isteyi iletebilir.

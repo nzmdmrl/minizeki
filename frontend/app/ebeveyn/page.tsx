@@ -233,6 +233,9 @@ function Rapor({ d }: { d: any }) {
     <div className="grid gap-4">
       {/* Okuma ve anlama — ses tanima YOK, sure olcumu ile hesaplanir */}
       {d.reading?.has_data && <OkumaBolumu r={d.reading} />}
+
+      {/* Mola: gunluk calisma/mola dengesi */}
+      {d.break && <MolaBolumu m={d.break} />}
       {/* Bugun */}
       <section className="card p-5">
         <h2 className="mb-3 font-black text-slate-700">Bugün</h2>
@@ -372,6 +375,73 @@ function Rapor({ d }: { d: any }) {
         </section>
       )}
     </div>
+  );
+}
+
+function MolaBolumu({ m }: { m: any }) {
+  const enBuyuk = Math.max(
+    1, ...m.history.map((h: any) => Math.max(h.study_min, h.break_min)));
+
+  return (
+    <section className="card p-5">
+      <div className="mb-1 flex items-baseline justify-between">
+        <h2 className="font-black text-slate-700">⏱️ Çalışma ve Mola</h2>
+        <span className="text-xs font-bold text-slate-400">
+          {m.enabled ? `${m.study_minutes} dk → ${m.break_minutes} dk` : 'kapalı'}
+        </span>
+      </div>
+      <p className="mb-4 text-xs font-bold text-slate-400">
+        Çalışma süresi, soru cevaplama aralıklarından hesaplanır.
+      </p>
+
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <div className="rounded-2xl bg-slate-50 p-4 text-center">
+          <p className="text-2xl font-black text-slate-800">
+            {m.today.study_min}
+            <span className="ml-1 text-xs font-bold text-slate-400">dk</span>
+          </p>
+          <p className="text-xs font-black text-brand-600">bugün çalışma</p>
+        </div>
+        <div className="rounded-2xl bg-slate-50 p-4 text-center">
+          <p className="text-2xl font-black text-slate-800">
+            {m.today.break_min}
+            <span className="ml-1 text-xs font-bold text-slate-400">dk</span>
+          </p>
+          <p className="text-xs font-black text-sun-600">bugün mola</p>
+        </div>
+      </div>
+
+      {/* 7 gunluk cubuk: calisma ustte, mola altta */}
+      <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">
+        Son 7 gün
+      </p>
+      <div className="flex h-24 items-end gap-1.5 rounded-xl bg-slate-50 p-2">
+        {m.history.map((h: any, i: number) => (
+          <div key={i} className="group relative flex flex-1 flex-col
+                                  items-center justify-end gap-0.5">
+            <div className="pointer-events-none absolute bottom-full mb-1 hidden
+                            whitespace-nowrap rounded bg-slate-800 px-2 py-1
+                            text-[10px] font-bold text-white group-hover:block">
+              {h.study_min} dk çalışma · {h.break_min} dk mola
+            </div>
+            {h.break_min > 0 && (
+              <div className="w-full rounded-t bg-sun-400"
+                   style={{ height: `${(h.break_min / enBuyuk) * 70}%` }} />
+            )}
+            <div className={`w-full bg-brand-500 ${h.break_min > 0 ? '' : 'rounded-t'}`}
+                 style={{ height: `${Math.max((h.study_min / enBuyuk) * 70, 2)}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-4 text-[11px] font-bold text-slate-400">
+        <span className="flex items-center gap-1">
+          <i className="h-2 w-2 rounded-sm bg-brand-500" /> çalışma
+        </span>
+        <span className="flex items-center gap-1">
+          <i className="h-2 w-2 rounded-sm bg-sun-400" /> mola
+        </span>
+      </div>
+    </section>
   );
 }
 
@@ -694,6 +764,67 @@ function Ayarlar({ d, pid, reload }: { d: any; pid: string; reload: () => void }
               </button>
             ))}
           </div>
+        </div>
+
+        {/* --- Mola --- */}
+        <div className="border-t border-slate-100 pt-5">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-black text-slate-700">Mola</h2>
+            <button onClick={() => save({ break_enabled: !s.break_enabled })}
+                    className={`rounded-xl px-4 py-2 text-sm font-extrabold transition ${
+                      s.break_enabled ? 'bg-mint-500 text-white'
+                                      : 'bg-slate-100 text-slate-500'}`}>
+              {s.break_enabled ? 'Açık ✓' : 'Kapalı'}
+            </button>
+          </div>
+          <p className="mb-4 text-xs font-bold text-slate-400">
+            Çocuğunuz belirlediğiniz süre kadar çalışınca oyun molası hakkı
+            kazanır. Mola bir ödül değil, dinlenme molasıdır — kullanmazsa
+            bir şey kaybetmez.
+          </p>
+
+          {s.break_enabled && (
+            <div className="grid gap-4">
+              <div>
+                <p className="mb-2 text-sm font-extrabold text-slate-600">
+                  Kaç dakika çalışınca mola?
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[15, 20, 30, 45].map((m) => (
+                    <button key={m} onClick={() => save({ study_minutes: m })}
+                            className={`rounded-xl py-2.5 text-sm font-extrabold transition ${
+                              s.study_minutes === m ? 'bg-brand-500 text-white'
+                                                    : 'bg-slate-100 text-slate-500'}`}>
+                      {m} dk
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-extrabold text-slate-600">
+                  Mola ne kadar sürsün?
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[5, 10, 15, 20].map((m) => (
+                    <button key={m} onClick={() => save({ break_minutes: m })}
+                            className={`rounded-xl py-2.5 text-sm font-extrabold transition ${
+                              s.break_minutes === m ? 'bg-sun-500 text-white'
+                                                    : 'bg-slate-100 text-slate-500'}`}>
+                      {m} dk
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm
+                            font-bold text-slate-500">
+                Şu an: <b className="text-slate-700">{s.study_minutes || 30} dakika</b>{' '}
+                çalışınca <b className="text-slate-700">{s.break_minutes || 15} dakika</b>{' '}
+                mola hakkı
+              </p>
+            </div>
+          )}
         </div>
       </section>
     </div>

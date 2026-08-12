@@ -334,6 +334,58 @@ def main():
         check("okuma gunluk goreve girmiyor",
               "okuma" not in {x["category_id"] for x in rq2.json()["questions"]})
 
+    # ================= MOLA =================
+    print("\n[Mola]")
+    from datetime import timedelta as _td, datetime as _dt
+    from models import AnswerLog as _AL2
+
+    rb = c.get(f"/api/break/status?profile_id={pid}", headers=H)
+    check("mola durumu 200", rb.status_code == 200, rb.text[:80])
+    if rb.status_code == 200:
+        bd = rb.json()
+        check("mola varsayilan acik", bd.get("enabled") is True)
+
+        # Yeterince calismadan mola alinamamali
+        rs0 = c.post("/api/break/start", headers=H, json={"profile_id": pid})
+        check("calismadan mola alinamiyor", rs0.status_code == 400)
+
+        # Calisma simule et: 35 dakika
+        _db = _SL()
+        _t0 = _dt.utcnow() - _td(minutes=36)
+        for _i in range(70):
+            _db.add(_AL2(profile_id=pid, category_id="carpim", band=2, grade=2,
+                         is_correct=True, duration_ms=4000, mode="quest",
+                         answered_at=_t0 + _td(seconds=_i * 30)))
+        _db.commit(); _db.close()
+
+        rb2 = c.get(f"/api/break/status?profile_id={pid}", headers=H).json()
+        _olculen = rb2["study_seconds"] // 60
+        check(f"calisma suresi olculuyor ({_olculen} dk, ~35 bekleniyor)",
+              30 <= _olculen <= 40)
+        check("mola hakki olustu", rb2["can_start"] is True)
+
+        rs = c.post("/api/break/start", headers=H, json={"profile_id": pid})
+        check("mola baslatiliyor", rs.status_code == 200, rs.text[:80])
+        if rs.status_code == 200:
+            _sid = rs.json()["id"]
+            # Acik mola varsa AYNI oturuma devam edilmeli (sayfa yenileme)
+            rs2 = c.post("/api/break/start", headers=H, json={"profile_id": pid})
+            check("acik molaya devam ediliyor",
+                  rs2.status_code == 200 and rs2.json().get("id") == _sid)
+            check("devam isaretleniyor", rs2.json().get("resumed") is True)
+
+            re_ = c.post("/api/break/end", headers=H, json={
+                "profile_id": pid, "session_id": _sid, "level_reached": 2})
+            check("mola bitiriliyor", re_.status_code == 200)
+
+    # Ebeveyn panelinde mola ozeti
+    rp = c.get(f"/api/parent/dashboard?profile_id={pid}", headers=PH)
+    if rp.status_code == 200:
+        check("panelde mola bolumu var", "break" in rp.json())
+        if "break" in rp.json():
+            check("7 gunluk gecmis var",
+                  len(rp.json()["break"].get("history", [])) == 7)
+
     # --- Tur ici tekrar (regresyon) ---
     # Bug: ayni tur icinde ayni soru birden fazla kez gelebiliyordu.
     # Cocuk 10 soruluk turda 7 kez ayni soruyu goruyordu.
